@@ -82,11 +82,12 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     )
   }
 
+  // Conditionally add the "Billings" navigation item based on `is_hpadmin`
   const navigation = [
     { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
     { name: "Diagnoses", href: "/diagnoses", icon: FileText },
     { name: "Patients", href: "/patients", icon: Users },
-    { name: "Billings", href: "/billing", icon:  FileBarChartIcon},
+    ...(userProfile?.is_hpadmin ? [{ name: "Billings", href: "/billing", icon: FileBarChartIcon }] : []),
     { name: "Support", href: "/support", icon: HelpCircle },
   ]
 
