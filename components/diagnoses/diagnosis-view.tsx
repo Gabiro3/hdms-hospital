@@ -2,6 +2,8 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
+import DoctorNotesForm from "./doctor-notes-form"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -19,6 +21,7 @@ import {
   AlertCircle,
   CheckCircle,
   Info,
+  Edit,
 } from "lucide-react"
 import { format } from "date-fns"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
@@ -43,15 +46,53 @@ interface DiagnosisViewProps {
   diagnosis: any // Using any for simplicity, but should be properly typed
 }
 
-export default function DiagnosisView({ diagnosis }: DiagnosisViewProps) {
+export default function DiagnosisView({ diagnosis: initialDiagnosis }: DiagnosisViewProps) {
   const [activeTab, setActiveTab] = useState("overview")
+  const [diagnosis, setDiagnosis] = useState(initialDiagnosis)
   const [selectedImage, setSelectedImage] = useState<string | null>(null)
+  const [isEditingNotes, setIsEditingNotes] = useState(false)
   const router = useRouter()
+  const supabase = createClientComponentClient()
 
   // Extract patient metadata
   const patientMetadata = diagnosis.patient_metadata || {}
   const aiAnalysis = diagnosis.ai_analysis_results || {}
 
+  // Refresh diagnosis data when editing notes
+  const handleNotesSuccess = () => {
+    setIsEditingNotes(false)
+    // Refresh the diagnosis data
+    fetchDiagnosis()
+  }
+
+  // Fetch the latest diagnosis data
+  const fetchDiagnosis = async () => {
+    try {
+      const { data } = await supabase
+        .from("diagnoses")
+        .select(`
+          *,
+          users (
+            id,
+            full_name,
+            email
+          ),
+          hospitals (
+            id,
+            name,
+            code
+          )
+        `)
+        .eq("id", diagnosis.id)
+        .single()
+
+      if (data) {
+        setDiagnosis(data)
+      }
+    } catch (error) {
+      console.error("Error fetching diagnosis:", error)
+    }
+  }
   // Handle print
   const handlePrint = () => {
     printDiagnosis(diagnosis.id)
@@ -94,6 +135,10 @@ export default function DiagnosisView({ diagnosis }: DiagnosisViewProps) {
           </div>
         </div>
         <div className="flex items-center gap-2">
+        <Button variant="outline" size="sm" onClick={() => setIsEditingNotes(true)}>
+            <Edit className="mr-2 h-4 w-4" />
+            Add Notes
+          </Button>
           <Button variant="outline" size="sm" onClick={handlePrint}>
             <Printer className="mr-2 h-4 w-4" />
             Print Report
@@ -205,6 +250,14 @@ export default function DiagnosisView({ diagnosis }: DiagnosisViewProps) {
                     <div className="rounded-md bg-gray-50 p-4">
                       <p className="whitespace-pre-wrap text-gray-700">
                         {diagnosis.doctor_notes || "No notes provided"}
+                      </p>
+                    </div>
+                  </div>
+                  <div>
+                    <h3 className="mb-2 text-lg font-medium">Doctor's Assessment</h3>
+                    <div className="rounded-md bg-gray-50 p-4">
+                      <p className="whitespace-pre-wrap text-gray-700">
+                        {diagnosis.doctor_assessment || "No notes provided"}
                       </p>
                     </div>
                   </div>
@@ -402,6 +455,29 @@ export default function DiagnosisView({ diagnosis }: DiagnosisViewProps) {
           </Tabs>
         </div>
       </div>
+      <Dialog open={isEditingNotes} onOpenChange={setIsEditingNotes}>
+  <DialogContent>
+    <DialogHeader>
+      <DialogTitle>Edit Doctor Notes</DialogTitle>
+      <DialogDescription>
+        Update the doctor’s notes and assessment for this diagnosis.
+      </DialogDescription>
+    </DialogHeader>
+
+    <DoctorNotesForm
+      diagnosisId={diagnosis.id}
+      initialNotes={diagnosis.doctor_notes || ""}
+      initialAssessment={diagnosis.doctor_assessment || ""}
+      onSuccess={handleNotesSuccess}
+    />
+
+    {/* Optional Footer if you want to include cancel/save buttons outside the form */}
+    <DialogFooter>
+      {/* Could place cancel button here if needed */}
+    </DialogFooter>
+  </DialogContent>
+</Dialog>
+      
 
       {/* Image Viewer Dialog */}
       <Dialog open={!!selectedImage} onOpenChange={(open) => !open && setSelectedImage(null)}>

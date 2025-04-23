@@ -67,16 +67,23 @@ export default function PrintDiagnosis({ diagnosis, id }: PrintDiagnosisProps) {
             <p className="whitespace-pre-wrap">{diagnosis.doctor_notes || "No notes provided"}</p>
           </div>
         </div>
+        {/* Doctor's Notes */}
+        <div className="mb-6">
+          <h3 className="text-lg font-semibold mb-2">Doctor's Assessment</h3>
+          <div className="border p-4 bg-gray-50">
+            <p className="whitespace-pre-wrap">{diagnosis.doctor_assessment || "No notes provided"}</p>
+          </div>
+        </div>
 
         {/* AI Analysis */}
         {aiAnalysis && Object.keys(aiAnalysis).length > 0 && (
           <div className="mb-6">
             <h3 className="text-lg font-semibold mb-2">AI Analysis</h3>
             <div className="border p-4">
-              {aiAnalysis.summary && (
+              {aiAnalysis.overall_summary && (
                 <div className="mb-4">
-                  <h4 className="font-medium">Summary</h4>
-                  <p>{aiAnalysis.summary}</p>
+                  <h4 className="font-medium">AI Summary</h4>
+                  <p>{aiAnalysis.overall_summary}</p>
                 </div>
               )}
 

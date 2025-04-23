@@ -191,6 +191,14 @@ export default function DiagnosisDetail({ diagnosis }: DiagnosisDetailProps) {
                       </p>
                     </div>
                   </div>
+                  <div>
+                    <h3 className="mb-2 text-lg font-medium">Doctor's Assessments</h3>
+                    <div className="rounded-md bg-gray-50 p-4">
+                      <p className="whitespace-pre-wrap text-gray-700">
+                        {diagnosis.doctor_assessment || "No assessment provided"}
+                      </p>
+                    </div>
+                  </div>
                 </TabsContent>
                 <TabsContent value="images" className="mt-0 space-y-4">
                   <div className="flex items-center justify-between">

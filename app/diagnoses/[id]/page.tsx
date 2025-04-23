@@ -10,14 +10,14 @@ export const metadata: Metadata = {
   description: "View diagnosis details and AI analysis results",
 }
 
-export default async function ViewDiagnosisPage({
-  params,
-}: {
+export default async function ViewDiagnosisPage(context: {
   params: { id: string }
 }) {
+  const { params } = context
+  const id = params?.id
+
   const supabase = createServerComponentClient({ cookies })
 
-  // Check if user is authenticated
   const {
     data: { session },
   } = await supabase.auth.getSession()
@@ -26,14 +26,16 @@ export default async function ViewDiagnosisPage({
     redirect("/login")
   }
 
-  // Get user data
-  const { data: userData } = await supabase.from("users").select("hospital_id").eq("id", session.user.id).single()
+  const { data: userData } = await supabase
+    .from("users")
+    .select("hospital_id")
+    .eq("id", session.user.id)
+    .single()
 
   if (!userData) {
     redirect("/login")
   }
 
-  // Get diagnosis data
   const { data: diagnosis } = await supabase
     .from("diagnoses")
     .select(`
@@ -49,14 +51,13 @@ export default async function ViewDiagnosisPage({
         code
       )
     `)
-    .eq("id", params.id)
+    .eq("id", id)
     .single()
 
   if (!diagnosis) {
     notFound()
   }
 
-  // Check if user has access to this diagnosis
   if (diagnosis.hospital_id !== userData.hospital_id) {
     redirect("/dashboard")
   }
@@ -67,3 +68,4 @@ export default async function ViewDiagnosisPage({
     </DashboardLayout>
   )
 }
+

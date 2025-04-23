@@ -8,7 +8,7 @@ type Diagnosis = Database["public"]["Tables"]["diagnoses"]["Row"]
 type DiagnosisInsert = Database["public"]["Tables"]["diagnoses"]["Insert"]
 type DiagnosisUpdate = Database["public"]["Tables"]["diagnoses"]["Update"]
 
-export async function getDiagnoses(hospitalId?: string, userId?: string, id?: string) {
+export async function getDiagnoses(hospitalId?: string, userId?: string) {
   try {
     const supabase = createServerSupabaseClient()
     let query = supabase.from("diagnoses").select(`
@@ -92,6 +92,46 @@ export async function updateDiagnosis(id: string, diagnosis: DiagnosisUpdate) {
   }
 }
 
+/**
+ * Add or update doctor's notes after AI analysis
+ */
+export async function addDoctorNotes(id: string, doctorNotes: string, doctorAssessment?: string) {
+  try {
+    const supabase = createServerSupabaseClient()
+
+    // Get the current diagnosis to preserve existing data
+    const { data: currentDiagnosis, error: fetchError } = await supabase
+      .from("diagnoses")
+      .select("doctor_notes, doctor_assessment")
+      .eq("id", id)
+      .single()
+
+    if (fetchError) throw fetchError
+
+    // Update the diagnosis with new notes and assessment
+    const updateData: DiagnosisUpdate = {
+      doctor_notes: doctorNotes,
+      updated_at: new Date().toISOString(),
+    }
+
+    // Only add doctor_assessment if provided
+    if (doctorAssessment) {
+      updateData.doctor_notes = doctorAssessment
+    }
+
+    const { data, error } = await supabase.from("diagnoses").update(updateData).eq("id", id).select().single()
+
+    if (error) throw error
+
+    revalidatePath(`/diagnoses/${id}`)
+    revalidatePath(`/diagnoses/${id}/view`)
+    return { diagnosis: data, error: null }
+  } catch (error) {
+    console.error(`Error adding doctor's notes to diagnosis with ID ${id}:`, error)
+    return { diagnosis: null, error: "Failed to add doctor's notes" }
+  }
+}
+
 export async function deleteDiagnosis(id: string) {
   try {
     const supabase = createServerSupabaseClient()
@@ -160,7 +200,7 @@ export async function removeDiagnosisImage(diagnosisId: string, imageUrl: string
     }
 
     // Remove the image URL from the array
-    const updatedImageLinks = diagnosis.image_links.filter((url: string) => url !== imageUrl)
+    const updatedImageLinks = diagnosis?.image_links.filter((url: string) => url !== imageUrl)
 
     // Update the diagnosis
     const { data, error } = await supabase
