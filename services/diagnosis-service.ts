@@ -8,7 +8,7 @@ type Diagnosis = Database["public"]["Tables"]["diagnoses"]["Row"]
 type DiagnosisInsert = Database["public"]["Tables"]["diagnoses"]["Insert"]
 type DiagnosisUpdate = Database["public"]["Tables"]["diagnoses"]["Update"]
 
-export async function getDiagnoses(hospitalId?: string, userId?: string) {
+export async function getDiagnoses(hospitalId?: string, userId?: string, id?: string) {
   try {
     const supabase = createServerSupabaseClient()
     let query = supabase.from("diagnoses").select(`
