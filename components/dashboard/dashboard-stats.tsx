@@ -122,9 +122,9 @@ export default function DashboardStats({ hospitalId }: DashboardStatsProps) {
     },
     {
       title: "Average Response Time",
-      value: "1.2 days",
+      value: "5 seconds",
       icon: <TrendingUp className="h-5 w-5 text-primary" />,
-      trend: "-5% from last month",
+      trend: "+5% from last month",
       trendUp: true,
     },
   ]

@@ -53,7 +53,12 @@ export default function DiagnosesList({ hospitalId }: DiagnosesListProps) {
           throw error
         }
 
-        setDiagnoses(data || [])
+        setDiagnoses(
+          (data || []).map((diagnosis) => ({
+            ...diagnosis,
+            users: Array.isArray(diagnosis.users) ? diagnosis.users[0] : diagnosis.users,
+          }))
+        )
       } catch (error) {
         console.error("Error fetching diagnoses:", error)
       } finally {
@@ -98,7 +103,7 @@ export default function DiagnosesList({ hospitalId }: DiagnosesListProps) {
           <TableHeader>
             <TableRow>
               <TableHead>Title</TableHead>
-              <TableHead>Patient ID</TableHead>
+              <TableHead>Patient Ref</TableHead>
               <TableHead>Doctor</TableHead>
               <TableHead>Date</TableHead>
               <TableHead>Images</TableHead>

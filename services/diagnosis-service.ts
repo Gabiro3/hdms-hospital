@@ -125,7 +125,7 @@ export async function uploadDiagnosisImage(file: File, diagnosisId: string) {
     // Update the diagnosis with the new image link
     const { data: diagnosis } = await supabase.from("diagnoses").select("image_links").eq("id", diagnosisId).single()
 
-    const imageLinks = diagnosis.image_links || []
+    const imageLinks = diagnosis?.image_links || []
     imageLinks.push(urlData.publicUrl)
 
     const { data, error } = await supabase
@@ -155,12 +155,12 @@ export async function removeDiagnosisImage(diagnosisId: string, imageUrl: string
     // Get the current image links
     const { data: diagnosis } = await supabase.from("diagnoses").select("image_links").eq("id", diagnosisId).single()
 
-    if (!diagnosis.image_links) {
+    if (!diagnosis?.image_links) {
       return { error: "No images found" }
     }
 
     // Remove the image URL from the array
-    const updatedImageLinks = diagnosis.image_links.filter((url) => url !== imageUrl)
+    const updatedImageLinks = diagnosis.image_links.filter((url: string) => url !== imageUrl)
 
     // Update the diagnosis
     const { data, error } = await supabase

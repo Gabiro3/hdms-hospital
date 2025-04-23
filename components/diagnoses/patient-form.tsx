@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea"
 
 const patientFormSchema = z.object({
   patientName: z.string().min(2, "Patient name must be at least 2 characters"),
-  patientId: z.string().min(2, "Patient ID must be at least 2 characters"),
+  patientId: z.string().min(2, "Patient Ref must be at least 2 characters"),
   ageRange: z.string().min(1, "Age range is required"),
   scanType: z.string().min(1, "Scan type is required"),
   notes: z.string().optional(),
@@ -65,9 +65,9 @@ export default function PatientForm({ onFormValuesChange, defaultValues }: Patie
             name="patientId"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Patient ID</FormLabel>
+                <FormLabel>Patient Ref</FormLabel>
                 <FormControl>
-                  <Input placeholder="Enter patient ID" {...field} />
+                  <Input placeholder="Enter Patient Ref" {...field} />
                 </FormControl>
                 <FormMessage />
               </FormItem>

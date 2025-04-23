@@ -126,3 +126,31 @@
 .tab-button:not(.active) {
   @apply text-muted-foreground hover:text-foreground;
 }
+
+/* Print styles */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+
+  .print-only,
+  .print-only * {
+    visibility: visible;
+  }
+
+  .print-only {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+  }
+
+  .print-disclaimer {
+    margin-bottom: 20px;
+    padding: 10px;
+    border: 2px solid #f43f5e;
+    background-color: #fff1f2;
+    color: #881337;
+    font-weight: bold;
+  }
+}

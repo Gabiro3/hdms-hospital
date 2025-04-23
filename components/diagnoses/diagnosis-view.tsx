@@ -5,11 +5,39 @@ import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { ArrowLeft, FileText, ImageIcon, Activity, Calendar, User, Hospital, Download, Printer, AlertCircle, CheckCircle, Info } from "lucide-react"
+import {
+  ArrowLeft,
+  FileText,
+  ImageIcon,
+  Activity,
+  Calendar,
+  User,
+  Hospital,
+  Download,
+  Printer,
+  Eye,
+  AlertCircle,
+  CheckCircle,
+  Info,
+} from "lucide-react"
 import { format } from "date-fns"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog"
+import {
+  printDiagnosis,
+  downloadImageWithDisclaimer,
+  downloadMultipleImagesWithDisclaimer,
+} from "@/lib/utils/print-utils"
+import PrintDiagnosis from "@/components/diagnoses/print-diagnosis"
 
 interface DiagnosisViewProps {
   diagnosis: any // Using any for simplicity, but should be properly typed
@@ -17,14 +45,40 @@ interface DiagnosisViewProps {
 
 export default function DiagnosisView({ diagnosis }: DiagnosisViewProps) {
   const [activeTab, setActiveTab] = useState("overview")
+  const [selectedImage, setSelectedImage] = useState<string | null>(null)
   const router = useRouter()
 
   // Extract patient metadata
   const patientMetadata = diagnosis.patient_metadata || {}
   const aiAnalysis = diagnosis.ai_analysis_results || {}
 
+  // Handle print
+  const handlePrint = () => {
+    printDiagnosis(diagnosis.id)
+  }
+
+  // Handle download all images
+  const handleDownloadAllImages = () => {
+    if (diagnosis.image_links && diagnosis.image_links.length > 0) {
+      downloadMultipleImagesWithDisclaimer(diagnosis.image_links, `diagnosis-${diagnosis.id}-images.zip`)
+    }
+  }
+
+  // Handle download single image
+  const handleDownloadImage = (imageUrl: string, index: number) => {
+    downloadImageWithDisclaimer(imageUrl, `diagnosis-${diagnosis.id}-image-${index + 1}.jpg`)
+  }
+
+  // Handle view image
+  const handleViewImage = (imageUrl: string) => {
+    setSelectedImage(imageUrl)
+  }
+
   return (
     <div className="space-y-6">
+      {/* Hidden print template */}
+      <PrintDiagnosis diagnosis={diagnosis} id={diagnosis.id} />
+
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-2">
           <Button variant="outline" size="icon" onClick={() => router.back()}>
@@ -40,11 +94,16 @@ export default function DiagnosisView({ diagnosis }: DiagnosisViewProps) {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm">
+          <Button variant="outline" size="sm" onClick={handlePrint}>
             <Printer className="mr-2 h-4 w-4" />
             Print Report
           </Button>
-          <Button variant="default" size="sm">
+          <Button
+            variant="default"
+            size="sm"
+            onClick={handleDownloadAllImages}
+            disabled={!diagnosis.image_links || diagnosis.image_links.length === 0}
+          >
             <Download className="mr-2 h-4 w-4" />
             Download Images
           </Button>
@@ -154,7 +213,12 @@ export default function DiagnosisView({ diagnosis }: DiagnosisViewProps) {
                 <TabsContent value="images" className="mt-0 space-y-4">
                   <div className="flex items-center justify-between">
                     <h3 className="text-lg font-medium">Diagnostic Images</h3>
-                    <Button variant="outline" size="sm">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleDownloadAllImages}
+                      disabled={!diagnosis.image_links || diagnosis.image_links.length === 0}
+                    >
                       <Download className="mr-2 h-4 w-4" />
                       Download All
                     </Button>
@@ -177,20 +241,29 @@ export default function DiagnosisView({ diagnosis }: DiagnosisViewProps) {
                             className="h-full w-full object-cover transition-all group-hover:scale-105"
                           />
                           <div className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 transition-opacity group-hover:opacity-100">
-                            <Button
-                              variant="secondary"
-                              size="sm"
-                              onClick={() => {
-                                const img = new Image()
-                                img.src = imageUrl // assumes you're in a map() where imageUrl is defined
-                                const win = window.open()
-                                win?.document.write(`<img src="${img.src}" style="width:100%;height:auto;" />`)
-                              }}
-                            >
-                              View
-                            </Button>
+                            <div className="flex gap-2">
+                              <Button
+                                variant="secondary"
+                                size="sm"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  handleViewImage(imageUrl)
+                                }}
+                              >
+                                <Eye className="mr-2 h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="secondary"
+                                size="sm"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  handleDownloadImage(imageUrl, index)
+                                }}
+                              >
+                                <Download className="mr-2 h-4 w-4" />
+                              </Button>
+                            </div>
                           </div>
-
                         </div>
                       ))}
                     </div>
@@ -203,11 +276,10 @@ export default function DiagnosisView({ diagnosis }: DiagnosisViewProps) {
                     {Array.isArray(aiAnalysis.per_image) && aiAnalysis.per_image.length > 0 && (
                       <>
                         {/* 🔶 Warning badge */}
-                        <Badge variant="outline" className="mb-4 flex items-center gap-1 bg-yellow-50 text-yellow-800">
-                          <Info className="h-6 w-4" />
-                          AI-generated results. Please verify and proceed cautiously.
-                        </Badge>
-
+                        <div className="border-2 border-amber-500 p-3 mb-4 bg-amber-50 text-amber-800 text-sm">
+                      <strong>Note:</strong> The AI analysis is provided as a supplementary tool and should be reviewed
+                      by a qualified medical professional.
+                    </div>
                         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3">
                           {aiAnalysis.per_image.map((imageData: any, index: number) => {
                             const isPositive = imageData.label === "Pneumonia Positive"
@@ -330,6 +402,48 @@ export default function DiagnosisView({ diagnosis }: DiagnosisViewProps) {
           </Tabs>
         </div>
       </div>
+
+      {/* Image Viewer Dialog */}
+      <Dialog open={!!selectedImage} onOpenChange={(open) => !open && setSelectedImage(null)}>
+        <DialogContent className="max-w-4xl">
+          <DialogHeader>
+            <DialogTitle>Diagnostic Image</DialogTitle>
+            <DialogDescription>From diagnosis: {diagnosis.title}</DialogDescription>
+          </DialogHeader>
+
+          <div className="flex justify-center my-4">
+            {selectedImage && (
+              <img
+                src={selectedImage || "/placeholder.svg"}
+                alt="Diagnostic image"
+                className="max-h-[60vh] object-contain"
+              />
+            )}
+          </div>
+
+          <div className="text-sm text-amber-600 bg-amber-50 p-3 border border-amber-200 rounded-md">
+            <strong>Disclaimer:</strong> This image is part of an AI-assisted diagnosis and should be reviewed by a
+            qualified medical professional. It should not be used as the sole basis for medical decisions.
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSelectedImage(null)}>
+              Close
+            </Button>
+            {selectedImage && (
+              <Button
+                onClick={() => {
+                  const index = diagnosis.image_links.indexOf(selectedImage)
+                  handleDownloadImage(selectedImage, index >= 0 ? index : 0)
+                }}
+              >
+                <Download className="mr-2 h-4 w-4" />
+                Download with Disclaimer
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

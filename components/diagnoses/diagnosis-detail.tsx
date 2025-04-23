@@ -79,7 +79,7 @@ export default function DiagnosisDetail({ diagnosis }: DiagnosisDetailProps) {
           <div>
             <h1 className="text-2xl font-semibold tracking-tight text-gray-900">{diagnosis.title}</h1>
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <span>Patient ID: {diagnosis.patient_id}</span>
+              <span>Patient Ref: {diagnosis.patient_id}</span>
               <span>•</span>
               <span>{format(new Date(diagnosis.created_at), "PPP")}</span>
             </div>
@@ -126,7 +126,7 @@ export default function DiagnosisDetail({ diagnosis }: DiagnosisDetailProps) {
                   </AvatarFallback>
                 </Avatar>
                 <div>
-                  <h3 className="font-medium">Patient ID: {diagnosis.patient_id}</h3>
+                  <h3 className="font-medium">Patient Ref: {diagnosis.patient_id}</h3>
                   <p className="text-sm text-muted-foreground">Medical Record</p>
                 </div>
               </div>
