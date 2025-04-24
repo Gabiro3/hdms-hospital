@@ -19,7 +19,7 @@ export default function SupportContactInfo() {
             <div>
               <p className="font-medium">Phone Support</p>
               <p className="text-sm text-muted-foreground">Available Monday to Friday, 9am - 5pm</p>
-              <p className="mt-1 text-lg">+1 (800) 123-4567</p>
+              <p className="mt-1 text-lg">(+250) 781 255 340</p>
             </div>
           </div>
 
@@ -37,8 +37,8 @@ export default function SupportContactInfo() {
             <div>
               <p className="font-medium">Support Hours</p>
               <p className="text-sm text-muted-foreground">When our team is available</p>
-              <p className="mt-1">Monday - Friday: 9:00 AM - 5:00 PM EST</p>
-              <p>Saturday: 10:00 AM - 2:00 PM EST</p>
+              <p className="mt-1">Monday - Friday: 9:00 AM - 5:00 PM CAT</p>
+              <p>Saturday: 10:00 AM - 2:00 PM CAT</p>
               <p>Sunday: Closed</p>
             </div>
           </div>
@@ -58,9 +58,9 @@ export default function SupportContactInfo() {
             <div>
               <p className="font-medium">Healthlink Headquarters</p>
               <p className="text-sm text-muted-foreground">Our main office location</p>
-              <p className="mt-1">123 Medical Drive</p>
-              <p>Suite 400</p>
-              <p>Boston, MA 02110</p>
+              <p className="mt-1">1 KN 78 St</p>
+              <p>Kigali City</p>
+              <p>Kigali, Rwanda</p>
             </div>
           </div>
 
