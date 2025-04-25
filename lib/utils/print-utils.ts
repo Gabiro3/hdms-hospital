@@ -7,6 +7,9 @@ export const AI_DISCLAIMER =
   "DISCLAIMER: This report contains AI-generated analysis which should be reviewed by a qualified medical professional. " +
   "The AI results are provided as a supplementary tool and should not be used as the sole basis for medical decisions."
 
+  export const AI_IMAGE_DISCLAIMER =
+  "DISCLAIMER: This image is AI-generated."
+
 /**
  * Prepares the page for printing a diagnosis
  * @param diagnosisId The ID of the diagnosis to print
@@ -49,7 +52,7 @@ export function printDiagnosis(diagnosisId: string) {
  * @param text The disclaimer text
  * @returns A Promise that resolves to a data URL of the image with watermark
  */
-export function addDisclaimerToImage(imageUrl: string, text: string = AI_DISCLAIMER): Promise<string> {
+export function addDisclaimerToImage(imageUrl: string, text: string = AI_IMAGE_DISCLAIMER): Promise<string> {
   return new Promise((resolve, reject) => {
     const img = new Image()
     img.crossOrigin = "anonymous" // Important to avoid CORS issues
@@ -71,7 +74,7 @@ export function addDisclaimerToImage(imageUrl: string, text: string = AI_DISCLAI
 
       // Add semi-transparent overlay at the bottom
       ctx.fillStyle = "rgba(0, 0, 0, 0.7)"
-      ctx.fillRect(0, canvas.height - 60, canvas.width, 60)
+      ctx.fillRect(0, canvas.height - 40, canvas.width, 40)
 
       // Add disclaimer text
       ctx.fillStyle = "white"
@@ -100,7 +103,7 @@ export function addDisclaimerToImage(imageUrl: string, text: string = AI_DISCLAI
 
       // Draw each line
       const lineHeight = 15
-      const startY = canvas.height - 45 + (lineHeight * (lines.length - 1)) / 2
+      const startY = canvas.height - 30 + (lineHeight * (lines.length - 1)) / 2
 
       lines.forEach((line, index) => {
         ctx.fillText(line, canvas.width / 2, startY + index * lineHeight)
@@ -131,7 +134,7 @@ export async function downloadImageWithDisclaimer(imageUrl: string, filename: st
     // Create a temporary link element
     const link = document.createElement("a")
     link.href = imageWithDisclaimer
-    link.download = filename || "diagnosis-image.jpg"
+    link.download = filename || "diagnosis-image.jpeg"
 
     // Append to the document, click it, and remove it
     document.body.appendChild(link)
@@ -152,7 +155,7 @@ export async function downloadMultipleImagesWithDisclaimer(imageUrls: string[], 
   // In a real implementation, you would use a library like JSZip to create a zip file
 
   for (let i = 0; i < imageUrls.length; i++) {
-    const filename = `diagnosis-image-${i + 1}.jpg`
+    const filename = `diagnosis-image-${i + 1}.jpeg`
     await downloadImageWithDisclaimer(imageUrls[i], filename)
   }
 }

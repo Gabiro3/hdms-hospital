@@ -152,7 +152,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
             <div className="mt-auto p-4">
               <div className="flex items-center">
                 <Avatar className="h-9 w-9">
-                  <AvatarImage src="/placeholder.svg" />
+                  <AvatarImage src="/user-profile.png" />
                   <AvatarFallback>{userProfile?.full_name ? getInitials(userProfile.full_name) : "U"}</AvatarFallback>
                 </Avatar>
                 <div className="ml-3 min-w-0 flex-1">
