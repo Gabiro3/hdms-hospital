@@ -74,7 +74,7 @@ export default function CreateDiagnosisForm({ user }: CreateDiagnosisFormProps) 
       setProcessingStatus("Processing images with AI...")
 
       // Submit the form using our authenticated API client
-      const response = await submitFormData("/api/diagnoses/create", formData)
+      const response = await submitFormData("/api/diagnoses/create/pneumonia", formData)
 
       if (!response.ok) {
         // Handle specific error cases

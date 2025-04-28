@@ -113,12 +113,9 @@ export default function PatientForm({ onFormValuesChange, defaultValues }: Patie
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>
-                    <SelectItem value="X-Ray">X-Ray</SelectItem>
-                    <SelectItem value="MRI">MRI</SelectItem>
-                    <SelectItem value="CT Scan">CT Scan</SelectItem>
-                    <SelectItem value="Ultrasound">Ultrasound</SelectItem>
-                    <SelectItem value="PET Scan">PET Scan</SelectItem>
-                    <SelectItem value="Mammogram">Mammogram</SelectItem>
+                    <SelectItem value="Chest X-Ray (Pneumonia Detection)">Chest X-Ray (Pneumonia Detection)</SelectItem>
+                    <SelectItem value="MRI (Brain Cancer Detection)">MRI (Brain Cancer Detection)</SelectItem>
+                    <SelectItem value="Mammography (Breast Cancer Detection)">Mammography (Breast Cancer Detection)</SelectItem>
                   </SelectContent>
                 </Select>
                 <FormMessage />
