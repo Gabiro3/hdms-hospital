@@ -10,15 +10,14 @@ export async function POST(request: NextRequest) {
   try {
     const supabase = createServerSupabaseClient()
     const formData = await request.formData()
+    const metadata = formData.get("metadata") as string
+    const patientMetadata = metadata ? JSON.parse(metadata) : {}
+
+    const { patientName, patientId, ageRange, scanType, notes = "" } = patientMetadata
 
     // Extract form values
-    const patientName = formData.get("patientName") as string
-    const patientId = formData.get("patientId") as string
-    const ageRange = formData.get("ageRange") as string
-    const scanType = formData.get("scanType") as string
     const hospitalId = formData.get("hospitalId") as string
     const userId = formData.get("userId") as string
-    const notes = (formData.get("notes") as string) || ""
 
     if (!patientName || !patientId || !ageRange || !scanType || !hospitalId) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 })
@@ -27,7 +26,7 @@ export async function POST(request: NextRequest) {
     // Get image files
     const imageFiles: File[] = []
     for (const [key, value] of formData.entries()) {
-      if (key.startsWith("images") && value instanceof File && value.size > 0) {
+      if (key.startsWith("image") && value instanceof File && value.size > 0) {
         imageFiles.push(value)
       }
     }

@@ -1,200 +1,287 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useCallback } from "react"
 import { useRouter } from "next/navigation"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Loader2, AlertCircle, CheckCircle2 } from "lucide-react"
-import ImageUploader from "@/components/diagnoses/image-uploader"
-import PatientForm, { type PatientFormValues } from "@/components/diagnoses/patient-form"
+import { Card, CardContent } from "@/components/ui/card"
 import { Steps, Step } from "@/components/ui/steps"
-import { submitFormData } from "@/lib/utils/api-client"
+import ImageUploader from "@/components/diagnoses/image-uploader"
+import PatientForm, { type PatientFormValues, SCAN_TYPE_TO_ENDPOINT } from "@/components/diagnoses/patient-form"
+import { toast } from "@/hooks/use-toast"
+import { Loader2, AlertCircle, CheckCircle2 } from "lucide-react"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 
-interface CreateDiagnosisFormProps {
-  user: any // Using any for simplicity, but should be properly typed
-}
-
-export default function CreateDiagnosisForm({ user }: CreateDiagnosisFormProps) {
+export default function CreateDiagnosisForm({ user }: { user: any }) {
+  const router = useRouter()
   const [currentStep, setCurrentStep] = useState(0)
-  const [patientFormValues, setPatientFormValues] = useState<PatientFormValues | null>(null)
-  const [selectedImages, setSelectedImages] = useState<File[]>([])
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [diagnosisId, setDiagnosisId] = useState<string | null>(null)
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([])
+  const [patientFormValues, setPatientFormValues] = useState<PatientFormValues | null>(null)
+  const [apiEndpoint, setApiEndpoint] = useState<string>("/api/analyze")
   const [processingStatus, setProcessingStatus] = useState<string>("")
-  const router = useRouter()
+  const [diagnosisCreated, setDiagnosisCreated] = useState(false)
+  const [diagnosisId, setDiagnosisId] = useState<string | null>(null)
 
-  const handlePatientFormChange = (values: PatientFormValues) => {
+  const handleScanTypeChange = useCallback((scanType: string) => {
+    // Set the appropriate API endpoint based on scan type
+    const endpoint = SCAN_TYPE_TO_ENDPOINT[scanType as keyof typeof SCAN_TYPE_TO_ENDPOINT] || "/api/analyze"
+    setApiEndpoint(endpoint)
+    console.log(`Scan type changed to ${scanType}, using endpoint: ${endpoint}`)
+  }, [])
+
+  const handleFileSelect = useCallback((files: File[]) => {
+    setSelectedFiles(files)
+  }, [])
+
+  const handlePatientFormChange = useCallback((values: PatientFormValues) => {
     setPatientFormValues(values)
-  }
+  }, [])
 
-  const handleImagesChange = (files: File[]) => {
-    setSelectedImages(files)
-  }
+  const handleNext = useCallback(() => {
+    if (currentStep === 0 && selectedFiles.length === 0) {
+      toast({
+        title: "No files selected",
+        description: "Please select at least one image file to continue.",
+        variant: "destructive",
+      })
+      return
+    }
 
-  const handleNextStep = () => {
-    setCurrentStep((prev) => prev + 1)
-  }
+    if (currentStep === 1 && (!patientFormValues || !patientFormValues.patientName || !patientFormValues.patientId)) {
+      toast({
+        title: "Incomplete patient information",
+        description: "Please fill in all required patient information to continue.",
+        variant: "destructive",
+      })
+      return
+    }
 
-  const handlePrevStep = () => {
-    setCurrentStep((prev) => prev - 1)
-  }
+    setCurrentStep((prev) => Math.min(prev + 1, 2))
+  }, [currentStep, selectedFiles.length, patientFormValues])
 
-  const handleSubmit = async () => {
-    if (!patientFormValues || selectedImages.length === 0) {
-      setError("Please complete all required fields and upload at least one image")
+  const handleBack = useCallback(() => {
+    setCurrentStep((prev) => Math.max(prev - 1, 0))
+  }, [])
+
+  const handleViewDiagnosis = useCallback(() => {
+    if (diagnosisId) {
+      router.push(`/diagnoses/${diagnosisId}`)
+    }
+  }, [diagnosisId, router])
+
+  const handleSubmit = useCallback(async () => {
+    if (!patientFormValues || selectedFiles.length === 0) {
+      toast({
+        title: "Missing information",
+        description: "Please complete all required fields before submitting.",
+        variant: "destructive",
+      })
       return
     }
 
     setIsSubmitting(true)
     setError(null)
-    setProcessingStatus("Uploading images...")
+    setProcessingStatus("Uploading image...")
 
     try {
-      // Create a FormData object to send files and form data
+      // Create form data for submission
       const formData = new FormData()
-
-      // Add patient form values
-      Object.entries(patientFormValues).forEach(([key, value]) => {
-        if (value) {
-          formData.append(key, value)
+      if (selectedFiles.length > 1) {
+        for (const file of selectedFiles) {
+          formData.append("image", file)
         }
-      })
+      }
+      
 
-      // Add hospital ID
+      // Add the first image file (current implementation handles one image)
+      formData.append("image", selectedFiles[0])
+
+      // Add hospital ID from user
       formData.append("hospitalId", user.hospital_id)
       formData.append("userId", user.id)
 
-      // Add images
-      selectedImages.forEach((file, index) => {
-        formData.append(`images[${index}]`, file)
+      // Add patient metadata
+      formData.append(
+        "metadata",
+        JSON.stringify({
+          patientName: patientFormValues.patientName,
+          patientId: patientFormValues.patientId,
+          ageRange: patientFormValues.ageRange,
+          scanType: patientFormValues.scanType,
+          notes: patientFormValues.notes || "",
+        }),
+      )
+
+      // Use the dynamically selected API endpoint based on scan type
+      console.log(`Submitting to endpoint: ${apiEndpoint}`)
+      setProcessingStatus("Processing with AI model...")
+
+      const response = await fetch(apiEndpoint, {
+        method: "POST",
+        body: formData,
       })
 
-      setProcessingStatus("Processing images with AI...")
-
-      // Submit the form using our authenticated API client
-      const response = await submitFormData("/api/diagnoses/create/pneumonia", formData)
-
       if (!response.ok) {
-        // Handle specific error cases
-        if (response.status === 401) {
-          throw new Error("Your session has expired. Please log in again.")
-        }
-
         const errorData = await response.json()
         throw new Error(errorData.error || "Failed to create diagnosis")
       }
 
       const data = await response.json()
-      setProcessingStatus("Diagnosis created successfully!")
 
-      // Store the diagnosis ID for redirection
-      setDiagnosisId(data.diagnosis.id)
+      setProcessingStatus("Diagnosis created successfully!")
+      setDiagnosisCreated(true)
+      setDiagnosisId(data.diagnosisId)
+
+      toast({
+        title: "Diagnosis created",
+        description: "Your diagnosis has been successfully created and stored.",
+      })
 
       // Move to success step
-      setCurrentStep(2)
-    } catch (error) {
-      console.error("Error creating diagnosis:", error)
-      setError(error instanceof Error ? error.message : "An unexpected error occurred")
+      setCurrentStep(3)
+    } catch (err) {
+      console.error("Error creating diagnosis:", err)
+      setError(err instanceof Error ? err.message : "An unknown error occurred")
+      toast({
+        title: "Error",
+        description: err instanceof Error ? err.message : "Failed to create diagnosis",
+        variant: "destructive",
+      })
     } finally {
       setIsSubmitting(false)
     }
-  }
-
-  const handleViewDiagnosis = () => {
-    if (diagnosisId) {
-      router.push(`/diagnoses/${diagnosisId}`)
-    }
-  }
-
-  const isNextDisabled = () => {
-    if (currentStep === 0) {
-      return (
-        !patientFormValues ||
-        !patientFormValues.patientName ||
-        !patientFormValues.patientId ||
-        !patientFormValues.ageRange ||
-        !patientFormValues.scanType
-      )
-    }
-
-    if (currentStep === 1) {
-      return selectedImages.length === 0
-    }
-
-    return false
-  }
+  }, [patientFormValues, selectedFiles, apiEndpoint, user.hospital_id])
 
   return (
-    <Card className="w-full">
-      <CardHeader>
-        <CardTitle>Create New Diagnosis</CardTitle>
-        <CardDescription>Fill in patient details and upload medical images for AI analysis</CardDescription>
-      </CardHeader>
-      <CardContent>
-        {error && (
-          <Alert variant="destructive" className="mb-6">
-            <AlertCircle className="h-4 w-4" />
-            <AlertTitle>Error</AlertTitle>
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        )}
+    <div className="space-y-8">
+      <Steps currentStep={currentStep} className="mb-8">
+        <Step title="Upload Images" description="Upload medical scan images" />
+        <Step title="Patient Information" description="Enter patient details" />
+        <Step title="Review & Submit" description="Review and create diagnosis" />
+        <Step title="Complete" description="Diagnosis created" />
+      </Steps>
 
-        <Steps currentStep={currentStep} className="mb-8">
-          <Step title="Patient Information" description="Enter patient details" />
-          <Step title="Upload Images" description="Upload medical scans" />
-          <Step title="Complete" description="Diagnosis created" />
-        </Steps>
+      {error && (
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Error</AlertTitle>
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
 
-        <div className="mt-6">
+      <Card>
+        <CardContent className="pt-6">
           {currentStep === 0 && (
-            <PatientForm onFormValuesChange={handlePatientFormChange} defaultValues={patientFormValues || undefined} />
+            <div className="space-y-4">
+              <h3 className="text-lg font-medium">Upload Medical Images</h3>
+              <p className="text-sm text-muted-foreground">
+                Upload medical scan images for AI analysis. Supported formats: JPG, PNG, DICOM.
+              </p>
+              <ImageUploader onImagesChange={handleFileSelect} maxImages={30} />
+            </div>
           )}
 
-          {currentStep === 1 && <ImageUploader onImagesChange={handleImagesChange} maxImages={5} />}
+          {currentStep === 1 && (
+            <div className="space-y-4">
+              <h3 className="text-lg font-medium">Patient Information</h3>
+              <p className="text-sm text-muted-foreground">Enter patient details and scan information.</p>
+              <PatientForm
+                onFormValuesChange={handlePatientFormChange}
+                onScanTypeChange={handleScanTypeChange}
+                defaultValues={patientFormValues || undefined}
+              />
+            </div>
+          )}
 
           {currentStep === 2 && (
+            <div className="space-y-6">
+              <h3 className="text-lg font-medium">Review & Submit</h3>
+
+              <div className="space-y-4">
+                <div>
+                  <h4 className="font-medium">Selected Images</h4>
+                  <p className="text-sm text-muted-foreground">{selectedFiles.length} image(s) selected</p>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {selectedFiles.map((file, index) => (
+                      <div key={index} className="border rounded p-2 text-sm">
+                        {file.name}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <h4 className="font-medium">Patient Information</h4>
+                  {patientFormValues && (
+                    <div className="mt-2 space-y-2 text-sm">
+                      <p>
+                        <span className="font-medium">Name:</span> {patientFormValues.patientName}
+                      </p>
+                      <p>
+                        <span className="font-medium">ID:</span> {patientFormValues.patientId}
+                      </p>
+                      <p>
+                        <span className="font-medium">Age Range:</span> {patientFormValues.ageRange}
+                      </p>
+                      <p>
+                        <span className="font-medium">Scan Type:</span> {patientFormValues.scanType}
+                      </p>
+                      {patientFormValues.notes && (
+                        <p>
+                          <span className="font-medium">Notes:</span> {patientFormValues.notes}
+                        </p>
+                      )}
+                      <p className="text-xs text-muted-foreground mt-2">
+                        Using specialized analysis for: {patientFormValues.scanType} ({apiEndpoint})
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {currentStep === 3 && (
             <div className="flex flex-col items-center justify-center py-12 text-center">
-              <div className="rounded-full bg-green-100 p-3">
+              <div className="rounded-full bg-green-100 p-3 mb-4">
                 <CheckCircle2 className="h-8 w-8 text-green-600" />
               </div>
-              <h3 className="mt-4 text-lg font-medium">Diagnosis Created Successfully</h3>
-              <p className="mt-2 text-sm text-gray-500">
-                Your diagnosis has been created and the AI analysis is complete.
+              <h3 className="text-xl font-medium">Diagnosis Created Successfully</h3>
+              <p className="mt-2 text-sm text-muted-foreground max-w-md">
+                Your diagnosis has been created and stored in the system. The AI analysis has been completed and is
+                ready for review.
               </p>
               <Button onClick={handleViewDiagnosis} className="mt-6">
                 View Diagnosis
               </Button>
             </div>
           )}
-        </div>
-      </CardContent>
-      <CardFooter className="flex justify-between border-t bg-muted/50 px-6 py-4">
-        <Button
-          variant="outline"
-          onClick={handlePrevStep}
-          disabled={currentStep === 0 || currentStep === 2 || isSubmitting}
-        >
-          Previous
-        </Button>
+        </CardContent>
+      </Card>
 
-        {currentStep < 1 ? (
-          <Button onClick={handleNextStep} disabled={isNextDisabled() || isSubmitting}>
-            Next
+      {currentStep < 3 && (
+        <div className="flex justify-between">
+          <Button variant="outline" onClick={handleBack} disabled={currentStep === 0 || isSubmitting}>
+            Back
           </Button>
-        ) : currentStep === 1 ? (
-          <Button onClick={handleSubmit} disabled={isNextDisabled() || isSubmitting}>
-            {isSubmitting ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" /> {processingStatus}
-              </>
-            ) : (
-              "Create Diagnosis"
-            )}
-          </Button>
-        ) : null}
-      </CardFooter>
-    </Card>
+
+          {currentStep < 2 ? (
+            <Button onClick={handleNext}>Next</Button>
+          ) : (
+            <Button onClick={handleSubmit} disabled={isSubmitting}>
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  {processingStatus}
+                </>
+              ) : (
+                "Create Diagnosis"
+              )}
+            </Button>
+          )}
+        </div>
+      )}
+    </div>
   )
 }

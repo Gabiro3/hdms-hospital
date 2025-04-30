@@ -83,7 +83,7 @@ export default function PrintDiagnosis({ diagnosis, id }: PrintDiagnosisProps) {
               {aiAnalysis.overall_summary && (
                 <div className="mb-4">
                   <h4 className="font-medium">AI Summary</h4>
-                  <p>{aiAnalysis.overall_summary}</p>
+                  <p>{aiAnalysis.overall_summary} {aiAnalysis.confidence || ''}</p>
                 </div>
               )}
 

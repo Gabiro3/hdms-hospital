@@ -6,10 +6,11 @@ import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, For
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
+import { useEffect } from "react"
 
 const patientFormSchema = z.object({
   patientName: z.string().min(2, "Patient name must be at least 2 characters"),
-  patientId: z.string().min(2, "Patient Ref must be at least 2 characters"),
+  patientId: z.string().min(2, "Patient ID must be at least 2 characters"),
   ageRange: z.string().min(1, "Age range is required"),
   scanType: z.string().min(1, "Scan type is required"),
   notes: z.string().optional(),
@@ -19,10 +20,22 @@ export type PatientFormValues = z.infer<typeof patientFormSchema>
 
 interface PatientFormProps {
   onFormValuesChange: (values: PatientFormValues) => void
+  onScanTypeChange?: (scanType: string) => void
   defaultValues?: Partial<PatientFormValues>
 }
 
-export default function PatientForm({ onFormValuesChange, defaultValues }: PatientFormProps) {
+// Map scan types to appropriate API endpoints
+export const SCAN_TYPE_TO_ENDPOINT = {
+  MRI: "/api/diagnoses/create/brain-mri",
+  "X-Ray": "/api/diagnoses/create/chest-14",
+  Ultrasound: "/api/diagnoses/create/breast-ultrasound",
+  // Default to general endpoint for other scan types
+  "Pneumonia": "/api/diagnoses/create/pneumonia",
+  "PET Scan": "/api/analyze",
+  Mammogram: "/api/analyze",
+}
+
+export default function PatientForm({ onFormValuesChange, onScanTypeChange, defaultValues }: PatientFormProps) {
   const form = useForm<PatientFormValues>({
     resolver: zodResolver(patientFormSchema),
     defaultValues: {
@@ -41,6 +54,15 @@ export default function PatientForm({ onFormValuesChange, defaultValues }: Patie
       onFormValuesChange(data as PatientFormValues)
     }
   })
+
+  // Watch specifically for scan type changes
+  const scanType = form.watch("scanType")
+
+  useEffect(() => {
+    if (scanType && onScanTypeChange) {
+      onScanTypeChange(scanType)
+    }
+  }, [scanType, onScanTypeChange])
 
   return (
     <Form {...form}>
@@ -65,9 +87,9 @@ export default function PatientForm({ onFormValuesChange, defaultValues }: Patie
             name="patientId"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Patient Ref</FormLabel>
+                <FormLabel>Patient ID</FormLabel>
                 <FormControl>
-                  <Input placeholder="Enter Patient Ref" {...field} />
+                  <Input placeholder="Enter patient ID" {...field} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -113,9 +135,10 @@ export default function PatientForm({ onFormValuesChange, defaultValues }: Patie
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>
-                    <SelectItem value="Chest X-Ray (Pneumonia Detection)">Chest X-Ray (Pneumonia Detection)</SelectItem>
-                    <SelectItem value="MRI (Brain Cancer Detection)">MRI (Brain Cancer Detection)</SelectItem>
-                    <SelectItem value="Mammography (Breast Cancer Detection)">Mammography (Breast Cancer Detection)</SelectItem>
+                    <SelectItem value="X-Ray">Chest X-Ray (General Scan)</SelectItem>
+                    <SelectItem value="MRI">MRI (Brain Cancer Detection)</SelectItem>
+                    <SelectItem value="Pneumonia">Chest X-Ray / CT Scan (Pneumonia Detection)</SelectItem>
+                    <SelectItem value="Ultrasound">Ultrasound (Breast Cancer Detection)</SelectItem>
                   </SelectContent>
                 </Select>
                 <FormMessage />
