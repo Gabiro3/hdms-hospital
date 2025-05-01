@@ -3,8 +3,6 @@ import { type NextRequest, NextResponse } from "next/server"
 import { v4 as uuidv4 } from "uuid"
 import { processBrainMRI, BrainMRIResult } from "@/lib/utils/gradio-client"
 
-export const maxDuration = 300 // Set max duration to 5 minutes for large image processing
-
 export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData()
