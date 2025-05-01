@@ -8,7 +8,7 @@ import Link from "next/link"
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 import type { User } from "@supabase/supabase-js"
 import { Button } from "@/components/ui/button"
-import { LayoutDashboard, FileText, Users, Hospital, Settings, LogOut, Menu, X, Bell, Search, HelpCircle, FileBarChartIcon } from "lucide-react"
+import { LayoutDashboard, FileText, Users, Hospital, LogOut, Menu, X, Bell, Search, HelpCircle, FileBarChartIcon, ScanIcon, ScanSearch, ScanLineIcon } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import {
   DropdownMenu,
@@ -88,6 +88,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     { name: "Diagnoses", href: "/diagnoses", icon: FileText },
     { name: "Patients", href: "/patients", icon: Users },
     ...(userProfile?.is_hpadmin ? [{ name: "Billings", href: "/billing", icon: FileBarChartIcon }] : []),
+    { name: "Image Viewer", href: "https://healthlink-dcim.vercel.app/", icon:  ScanLineIcon},
     { name: "Support", href: "/support", icon: HelpCircle },
   ]
 

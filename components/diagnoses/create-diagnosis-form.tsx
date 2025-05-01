@@ -39,7 +39,7 @@ export default function CreateDiagnosisForm({ user }: { user: any }) {
   }, [])
 
   const handleNext = useCallback(() => {
-    if (currentStep === 0 && selectedFiles.length === 0) {
+    if (currentStep === 1 && selectedFiles.length === 0) {
       toast({
         title: "No files selected",
         description: "Please select at least one image file to continue.",
@@ -48,7 +48,7 @@ export default function CreateDiagnosisForm({ user }: { user: any }) {
       return
     }
 
-    if (currentStep === 1 && (!patientFormValues || !patientFormValues.patientName || !patientFormValues.patientId)) {
+    if (currentStep === 0 && (!patientFormValues || !patientFormValues.patientName || !patientFormValues.patientId)) {
       toast({
         title: "Incomplete patient information",
         description: "Please fill in all required patient information to continue.",
@@ -156,8 +156,8 @@ export default function CreateDiagnosisForm({ user }: { user: any }) {
   return (
     <div className="space-y-8">
       <Steps currentStep={currentStep} className="mb-8">
-        <Step title="Upload Images" description="Upload medical scan images" />
         <Step title="Patient Information" description="Enter patient details" />
+        <Step title="Upload Images" description="Upload Scan Images" />
         <Step title="Review & Submit" description="Review and create diagnosis" />
         <Step title="Complete" description="Diagnosis created" />
       </Steps>
@@ -172,17 +172,8 @@ export default function CreateDiagnosisForm({ user }: { user: any }) {
 
       <Card>
         <CardContent className="pt-6">
-          {currentStep === 0 && (
-            <div className="space-y-4">
-              <h3 className="text-lg font-medium">Upload Medical Images</h3>
-              <p className="text-sm text-muted-foreground">
-                Upload medical scan images for AI analysis. Supported formats: JPG, PNG, DICOM.
-              </p>
-              <ImageUploader onImagesChange={handleFileSelect} maxImages={30} />
-            </div>
-          )}
 
-          {currentStep === 1 && (
+          {currentStep === 0 && (
             <div className="space-y-4">
               <h3 className="text-lg font-medium">Patient Information</h3>
               <p className="text-sm text-muted-foreground">Enter patient details and scan information.</p>
@@ -191,6 +182,15 @@ export default function CreateDiagnosisForm({ user }: { user: any }) {
                 onScanTypeChange={handleScanTypeChange}
                 defaultValues={patientFormValues || undefined}
               />
+            </div>
+          )}
+          {currentStep === 1 && (
+            <div className="space-y-4">
+              <h3 className="text-lg font-medium">Upload Medical Images</h3>
+              <p className="text-sm text-muted-foreground">
+                Upload medical scan images for AI analysis. Supported formats: JPG, PNG, DICOM.
+              </p>
+              <ImageUploader onImagesChange={handleFileSelect} maxImages={30} />
             </div>
           )}
 
