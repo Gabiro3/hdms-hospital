@@ -80,6 +80,7 @@ export async function getBillingData(filters: BillingFilter = {}) {
 
     // Process the data to calculate costs
     const processedData = await processBillingData(diagnoses)
+    console.log("Processed billing data:", processedData.hospitals)
 
     return {
       billingData: processedData,

@@ -51,7 +51,7 @@ export default async function PatientDetailPage({
   }
 
   // Get patient's diagnoses
-  const { diagnoses } = await getDiagnoses(userData.hospital_id, undefined, id)
+  const { diagnoses } = await getDiagnoses(userData.hospital_id, id)
 
   return (
     <DashboardLayout>

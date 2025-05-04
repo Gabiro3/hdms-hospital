@@ -4,10 +4,11 @@
 
 // Define the cost for each diagnosis type
 const DIAGNOSIS_COSTS = {
-    "Chest X-Ray (Pneumonia Detection)": process.env.NEXT_PUBLIC_PNEUMONIA_PRICE,
-    "MRI (Brain Cancer Detection)": process.env.NEXT_PUBLIC_BRAIN_MRI_PRICE,
+    "Chest X-ray": process.env.NEXT_PUBLIC_PNEUMONIA_PRICE,
+    "Brain MRI": process.env.NEXT_PUBLIC_BRAIN_MRI_PRICE,
     "Mammography (Breast Cancer Detection)": process.env.NEXT_PUBLIC_MMG_PRICE,
-    Ultrasound: process.env.NEXT_PUBLIC_ULTRASOUND_PRICE,
+    "Breast Ultrasound": process.env.NEXT_PUBLIC_ULTRASOUND_PRICE,
+    "Pneumonia": process.env.NEXT_PUBLIC_PNEUMONIA_PRICE,
     Other: process.env.NEXT_PUBLIC_OTHER_PRICE,
   }
   

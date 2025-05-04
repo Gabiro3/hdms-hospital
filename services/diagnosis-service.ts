@@ -22,7 +22,7 @@ export async function getDiagnoses(hospitalId?: string, userId?: string) {
     }
 
     if (userId) {
-      query = query.eq("user_id", userId)
+      query = query.eq("patient_id", userId)
     }
 
     const { data, error } = await query.order("created_at", { ascending: false })

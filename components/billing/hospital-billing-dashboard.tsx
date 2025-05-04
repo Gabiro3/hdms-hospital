@@ -170,7 +170,7 @@ export default function HospitalBillingDashboard({
             <CreditCard className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(hospitalData.totalAmount)}</div>
+            <div className="text-2xl font-bold">{formatCurrency(billingData.overall.totalAmount)}</div>
             <p className="text-xs text-muted-foreground">
               For{" "}
               {billingPeriod === "current-month"
@@ -214,7 +214,7 @@ export default function HospitalBillingDashboard({
           <CardContent>
             <div className="text-2xl font-bold">
               {hospitalData.diagnoses?.length > 0
-                ? formatCurrency(hospitalData.totalAmount / hospitalData.diagnoses.length)
+                ? formatCurrency(billingData.overall.totalAmount / hospitalData.diagnoses.length)
                 : formatCurrency(0)}
             </div>
             <p className="text-xs text-muted-foreground">Per diagnosis</p>
@@ -237,7 +237,7 @@ export default function HospitalBillingDashboard({
                 <CardDescription>Distribution of costs by diagnosis type</CardDescription>
               </CardHeader>
               <CardContent className="h-80">
-                <BillingBreakdownChart data={hospitalData} />
+                <BillingBreakdownChart data={billingData.overall} />
               </CardContent>
             </Card>
 
@@ -248,15 +248,19 @@ export default function HospitalBillingDashboard({
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {Object.entries(hospitalData.diagnosisCounts).map(([type, count]) => (
-                    <div key={type} className="flex items-center justify-between">
-                      <div className="space-y-1">
-                        <p className="text-sm font-medium leading-none">{type}</p>
-                        <p className="text-sm text-muted-foreground">{String(count)} diagnoses</p>
-                      </div>
-                      <div className="font-medium">{formatCurrency(hospitalData.diagnosisCosts[type] || 0)}</div>
-                    </div>
-                  ))}
+                {console.log(billingData.overall)}
+                {billingData?.overall.diagnosisCounts &&
+  Object.entries(billingData.overall.diagnosisCounts).map(([type, count]) => (
+    <div key={type} className="flex items-center justify-between">
+      <div className="space-y-1">
+        <p className="text-sm font-medium leading-none">{type}</p>
+        <p className="text-sm text-muted-foreground">{String(count)} diagnoses</p>
+      </div>
+      <div className="font-medium">
+        {formatCurrency(billingData.overall.diagnosisCosts[type] || 0)}</div>
+    </div>
+  ))}
+
                 </div>
               </CardContent>
             </Card>

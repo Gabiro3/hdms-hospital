@@ -195,7 +195,7 @@ export default function PatientView({ patient, diagnoses }: PatientViewProps) {
                                       <p className="text-sm mt-2 line-clamp-2">{diagnosis.doctor_notes}</p>
                                     )}
                                   </div>
-                                  <Link href={`/diagnoses/${diagnosis.id}/view`}>
+                                  <Link href={`/diagnoses/${diagnosis.id}`}>
                                     <Button variant="outline" size="sm">
                                       View
                                     </Button>
@@ -256,7 +256,7 @@ export default function PatientView({ patient, diagnoses }: PatientViewProps) {
                                   <p className="text-sm mt-2 line-clamp-2">{diagnosis.doctor_notes}</p>
                                 )}
                               </div>
-                              <Link href={`/diagnoses/${diagnosis.id}/view`}>
+                              <Link href={`/diagnoses/${diagnosis.id}`}>
                                 <Button>View Details</Button>
                               </Link>
                             </div>

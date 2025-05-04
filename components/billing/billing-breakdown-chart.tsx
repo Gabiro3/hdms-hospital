@@ -17,6 +17,7 @@ export default function BillingBreakdownChart({ data }: BillingBreakdownChartPro
 
   // Define colors for the chart
   const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042", "#8884d8", "#82ca9d"]
+  console.log(chartData)
 
   // Format currency for the tooltip
   const formatCurrency = (value: number) => {
