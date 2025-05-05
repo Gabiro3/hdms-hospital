@@ -27,7 +27,6 @@ export default function CreateDiagnosisForm({ user }: { user: any }) {
     // Set the appropriate API endpoint based on scan type
     const endpoint = SCAN_TYPE_TO_ENDPOINT[scanType as keyof typeof SCAN_TYPE_TO_ENDPOINT] || "/api/analyze"
     setApiEndpoint(endpoint)
-    console.log(`Scan type changed to ${scanType}, using endpoint: ${endpoint}`)
   }, [])
 
   const handleFileSelect = useCallback((files: File[]) => {
@@ -232,9 +231,6 @@ export default function CreateDiagnosisForm({ user }: { user: any }) {
                           <span className="font-medium">Notes:</span> {patientFormValues.notes}
                         </p>
                       )}
-                      <p className="text-xs text-muted-foreground mt-2">
-                        Using specialized analysis for: {patientFormValues.scanType} ({apiEndpoint})
-                      </p>
                     </div>
                   )}
                 </div>
