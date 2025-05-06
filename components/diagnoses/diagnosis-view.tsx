@@ -383,7 +383,15 @@ export default function DiagnosisView({ diagnosis: initialDiagnosis }: Diagnosis
         <Card>
           <CardContent className="p-4">
             <h4 className="font-medium">Summary</h4>
-            <p className="mt-1 text-gray-700">{aiAnalysis.overall_summary} <Badge>{aiAnalysis.confidence || ''}</Badge></p>
+            <p className="mt-1 text-gray-700">
+  {aiAnalysis.overall_summary || aiAnalysis.prediction_label || ''}
+  {aiAnalysis.confidence || aiAnalysis.confidence_score ? (
+    <Badge className="ml-2">
+      {aiAnalysis.confidence || aiAnalysis.confidence_score}%
+    </Badge>
+  ) : null}
+</p>
+
           </CardContent>
         </Card>
 
