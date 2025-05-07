@@ -108,7 +108,7 @@ export async function processChestXray(imageBlob: Blob) {
  * @param imageBlob The image blob to process
  * @returns The processing result
  */
-export async function processBoneFracture(imageBlob: Blob) {
+export async function processKidneyImage(imageBlob: Blob) {
   try {
     const client = await getGradioClient(GRADIO_MODELS.KIDNEY_CT)
 
@@ -135,7 +135,7 @@ export async function processBoneFracture(imageBlob: Blob) {
  * @param imageBlob The image blob to process
  * @returns The processing result
  */
-export async function processKidneyImage(imageBlob: Blob) {
+export async function processBoneFracture(imageBlob: Blob) {
   try {
     const client = await getGradioClient(GRADIO_MODELS.BONE_FRACTURE)
 
