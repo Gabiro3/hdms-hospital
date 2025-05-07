@@ -89,7 +89,6 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     { name: "Patients", href: "/patients", icon: Users },
     { name: "Reports", href: "/reports", icon:  FileArchive },
     ...(userProfile?.is_hpadmin ? [{ name: "Billings", href: "/billing", icon: FileBarChartIcon }] : []),
-    { name: "Image Viewer", href: "https://healthlink-dcim.vercel.app/", icon:  ScanLineIcon},
     { name: "Support", href: "/support", icon: HelpCircle },
   ]
 

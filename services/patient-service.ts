@@ -38,6 +38,132 @@ export async function getPatientById(patientId: string, hospitalId?:string) {
 }
 
 /**
+ * Get a patient by ID
+ */
+export async function getGeneralPatientById(patientId: string, hospitalId: string) {
+  try {
+    const supabase = createServerSupabaseClient()
+
+    // First try to get from patients table
+    const { data: patient, error } = await supabase
+      .from("patients")
+      .select("*")
+      .eq("id", patientId)
+      .eq("hospital_id", hospitalId)
+      .single()
+
+    // If found in patients table
+    if (patient && !error) {
+      // Get all diagnoses for this patient
+      const { data: diagnoses, error: diagnosesError } = await supabase
+        .from("diagnoses")
+        .select(`
+          *,
+          users (
+            id,
+            full_name,
+            email
+          )
+        `)
+        .eq("patient_id", patientId)
+        .eq("hospital_id", hospitalId)
+        .order("created_at", { ascending: false })
+
+      if (diagnosesError) throw diagnosesError
+
+      // Get all visits for this patient
+      const { data: visits, error: visitsError } = await supabase
+        .from("patient_visits")
+        .select(`
+          *,
+          users (
+            id,
+            full_name,
+            email
+          )
+        `)
+        .eq("patient_id", patientId)
+        .eq("hospital_id", hospitalId)
+        .order("visit_date", { ascending: false })
+
+      if (visitsError) throw visitsError
+
+      return {
+        patient: {
+          ...patient,
+          diagnoses: diagnoses || [],
+          visits: visits || [],
+        },
+        error: null,
+      }
+    }
+
+    // If not found in patients table, try legacy method
+    return getLegacyPatientById(patientId, hospitalId)
+  } catch (error) {
+    console.error(`Error fetching patient with ID ${patientId}:`, error)
+    return { patient: null, error: "Failed to fetch patient" }
+  }
+}
+
+/**
+ * Legacy method to get patient by ID from diagnoses
+ */
+async function getLegacyPatientById(patientId: string, hospitalId: string) {
+  try {
+    const supabase = createServerSupabaseClient()
+
+    // Get all diagnoses for this patient
+    const { data: diagnoses, error } = await supabase
+      .from("diagnoses")
+      .select(`
+        *,
+        users (
+          id,
+          full_name,
+          email
+        )
+      `)
+      .eq("patient_id", patientId)
+      .eq("hospital_id", hospitalId)
+      .order("created_at", { ascending: false })
+
+    if (error) throw error
+
+    if (diagnoses.length === 0) {
+      return { patient: null, error: "Patient not found" }
+    }
+
+    // Extract patient information from the diagnoses
+    const patientName = diagnoses[0].patient_metadata?.name || null
+    const patientMetadata = diagnoses[0].patient_metadata || {}
+
+    // Combine all metadata from all diagnoses
+    diagnoses.forEach((diagnosis) => {
+      if (diagnosis.patient_metadata) {
+        Object.assign(patientMetadata, diagnosis.patient_metadata)
+      }
+    })
+
+    const patient = {
+      id: patientId,
+      name: patientName,
+      diagnosisCount: diagnoses.length,
+      lastDiagnosis: diagnoses[0].created_at,
+      metadata: patientMetadata,
+      diagnoses,
+      visits: [],
+      patient_info: null,
+    }
+
+    return { patient, error: null }
+  } catch (error) {
+    console.error(`Error fetching legacy patient with ID ${patientId}:`, error)
+    return { patient: null, error: "Failed to fetch patient" }
+  }
+}
+
+/**
  * Get all patients for a hospital
  */
 export async function getPatients(hospitalId: string) {

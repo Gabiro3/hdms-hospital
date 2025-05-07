@@ -40,6 +40,11 @@ export default async function PatientsPage() {
         <h1 className="text-2xl font-semibold tracking-tight text-gray-900">Patients</h1>
         <p className="text-sm text-gray-500">View and manage patients in your hospital</p>
       </div>
+      <Link href="/patients/new">
+            <Button className="flex items-center gap-1">
+              <Plus className="h-4 w-4" /> Add Patient Record
+            </Button>
+          </Link>
     </div>
 
     <PatientsList hospitalId={userData.hospital_id} />

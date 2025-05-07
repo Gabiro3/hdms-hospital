@@ -4,7 +4,7 @@ import { cookies } from "next/headers"
 import { notFound, redirect } from "next/navigation"
 import DashboardLayout from "@/components/layout/dashboard-layout"
 import PatientView from "@/components/patients/patient-view"
-import { getPatientById } from "@/services/patient-service"
+import { getGeneralPatientById } from "@/services/patient-service"
 import { getDiagnoses } from "@/services/diagnosis-service"
 
 export const metadata: Metadata = {
@@ -39,7 +39,7 @@ export default async function PatientDetailPage({
   const { id } = params;  // Extract id from params here
 
   // Get patient data
-  const { patient, error: patientError } = await getPatientById(id)
+  const { patient, error: patientError } = await getGeneralPatientById(id, userData.hospital_id)
 
   if (patientError || !patient) {
     notFound()
@@ -55,7 +55,7 @@ export default async function PatientDetailPage({
 
   return (
     <DashboardLayout>
-      <PatientView patient={patient} diagnoses={diagnoses || []} />
+      <PatientView patient={patient} currentUser={userData}/>
     </DashboardLayout>
   )
 }
