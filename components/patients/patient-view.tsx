@@ -3,271 +3,622 @@
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { format, parseISO } from "date-fns"
+import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { ArrowLeft, FileText, Calendar, User, Hospital, Clock, Search } from "lucide-react"
-import { format } from "date-fns"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { Badge } from "@/components/ui/badge"
-import { Separator } from "@/components/ui/separator"
+import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Badge } from "@/components/ui/badge"
+import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import {
+  ArrowLeft,
+  Search,
+  Calendar,
+  FileText,
+  Eye,
+  Printer,
+  Activity,
+  Pill,
+  ClipboardList,
+  UserRound,
+  Phone,
+  Mail,
+  MapPin,
+  AlertCircle,
+  Heart,
+  Clock,
+  PenLine,
+} from "lucide-react"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
+import { toast } from "@/components/ui/use-toast"
+import { generatePatientPDF } from "@/lib/utils/pdf-utils"
+import PatientTimeline from "./patient-timeline"
+import PatientVitalsChart from "./patient-vitals-chart"
+import PatientVisitForm from "./patient-visit-form"
 
 interface PatientViewProps {
   patient: any
-  diagnoses: any[]
+  currentUser: any
 }
 
-export default function PatientView({ patient, diagnoses }: PatientViewProps) {
+export default function PatientView({ patient, currentUser }: PatientViewProps) {
   const [activeTab, setActiveTab] = useState("overview")
   const [searchQuery, setSearchQuery] = useState("")
+  const [isGeneratingPDF, setIsGeneratingPDF] = useState(false)
+  const [showVisitForm, setShowVisitForm] = useState(false)
   const router = useRouter()
 
-  // Extract patient metadata from the first diagnosis if available
-  const patientMetadata = diagnoses[0]?.patient_metadata || {}
+  // Filter diagnoses based on search query
+  const filteredDiagnoses =
+    patient.diagnoses?.filter(
+      (diagnosis: any) =>
+        diagnosis.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (diagnosis.doctor_notes && diagnosis.doctor_notes.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        (diagnosis.users?.full_name && diagnosis.users.full_name.toLowerCase().includes(searchQuery.toLowerCase())),
+    ) || []
 
-  // Filter diagnoses based on search
-  const filteredDiagnoses = diagnoses.filter(
-    (diagnosis) =>
-      diagnosis.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (diagnosis.doctor_notes && diagnosis.doctor_notes.toLowerCase().includes(searchQuery.toLowerCase())),
-  )
+  // Filter visits based on search query
+  const filteredVisits =
+    patient.visits?.filter(
+      (visit: any) =>
+        visit.reason?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (visit.notes?.subjective && visit.notes.subjective.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        (visit.users?.full_name && visit.users.full_name.toLowerCase().includes(searchQuery.toLowerCase())),
+    ) || []
+
+  // Handle print patient data
+  const handlePrintPatient = async () => {
+    try {
+      setIsGeneratingPDF(true)
+      await generatePatientPDF(patient)
+      toast({
+        title: "PDF Generated",
+        description: "Patient information has been exported to PDF",
+      })
+    } catch (error) {
+      console.error("Error generating PDF:", error)
+      toast({
+        title: "Error",
+        description: "Failed to generate PDF. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsGeneratingPDF(false)
+    }
+  }
+
+  // Handle visit form submission
+  const handleVisitSubmitted = () => {
+    setShowVisitForm(false)
+    router.refresh()
+    toast({
+      title: "Visit Recorded",
+      description: "Patient visit has been recorded successfully",
+    })
+  }
+
+  // Format date of birth
+  const formatDateOfBirth = () => {
+    if (patient.patient_info?.demographics?.dateOfBirth) {
+      return format(new Date(patient.patient_info.demographics.dateOfBirth), "MMMM d, yyyy")
+    }
+    return "Not recorded"
+  }
+
+  // Calculate age
+  const calculateAge = () => {
+    if (patient.patient_info?.demographics?.age) {
+      return patient.patient_info.demographics.age
+    }
+    if (patient.patient_info?.demographics?.dateOfBirth) {
+      const birthDate = new Date(patient.patient_info.demographics.dateOfBirth)
+      const today = new Date()
+      let age = today.getFullYear() - birthDate.getFullYear()
+      const m = today.getMonth() - birthDate.getMonth()
+      if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
+        age--
+      }
+      return age
+    }
+    return "Unknown"
+  }
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <Button variant="outline" size="icon" onClick={() => router.back()}>
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div>
             <h1 className="text-2xl font-semibold tracking-tight text-gray-900">
-              {patientMetadata.name || `Patient: ${patient.id}`}
+              {patient.name || `Patient ${patient.id}`}
             </h1>
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <span>Patient ID: {patient.id}</span>
-              {diagnoses.length > 0 && (
-                <>
-                  <span>•</span>
-                  <span>{diagnoses.length} diagnoses</span>
-                </>
-              )}
-            </div>
+            <p className="text-sm text-muted-foreground">Patient ID: {patient.id}</p>
           </div>
+        </div>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={handlePrintPatient} disabled={isGeneratingPDF}>
+            {isGeneratingPDF ? (
+              <>
+                <span className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent"></span>
+                Generating...
+              </>
+            ) : (
+              <>
+                <Printer className="mr-2 h-4 w-4" />
+                Print Patient Data
+              </>
+            )}
+          </Button>
+          <Dialog open={showVisitForm} onOpenChange={setShowVisitForm}>
+            <DialogTrigger asChild>
+              <Button>
+                <PenLine className="mr-2 h-4 w-4" />
+                Record Visit
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-3xl">
+              <DialogHeader>
+                <DialogTitle>Record Patient Visit</DialogTitle>
+                <DialogDescription>
+                  Enter the details of the patient visit. This will be added to the patient's medical record.
+                </DialogDescription>
+              </DialogHeader>
+              <PatientVisitForm
+                patient={patient}
+                hospitalId={currentUser.hospital_id}
+                userId={currentUser.id}
+                doctorName={currentUser.full_name}
+                onSubmitted={handleVisitSubmitted}
+              />
+            </DialogContent>
+          </Dialog>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        <div className="lg:col-span-1">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg font-medium">Patient Information</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center gap-4">
-                <Avatar className="h-16 w-16 border">
-                  <AvatarFallback className="bg-primary/10 text-primary text-xl">
-                    {patientMetadata.name
-                      ? patientMetadata.name.substring(0, 2).toUpperCase()
-                      : patient.id.substring(0, 2)}
-                  </AvatarFallback>
-                </Avatar>
+      <div className="grid gap-6 md:grid-cols-3">
+        <Card className="md:col-span-1">
+          <CardHeader>
+            <CardTitle>Patient Information</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex justify-center">
+              <Avatar className="h-24 w-24">
+                <AvatarFallback className="bg-primary/10 text-primary text-xl">
+                  {patient.name ? patient.name.charAt(0).toUpperCase() : patient.id.substring(0, 2)}
+                </AvatarFallback>
+              </Avatar>
+            </div>
+
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <UserRound className="h-4 w-4 text-muted-foreground" />
                 <div>
-                  <h3 className="font-medium">{patientMetadata.name || "Unknown"}</h3>
-                  <p className="text-sm text-muted-foreground">Patient ID: {patient.id}</p>
+                  <p className="text-sm font-medium text-muted-foreground">Name</p>
+                  <p className="font-medium">{patient.name || "Unknown"}</p>
                 </div>
               </div>
-              <Separator />
-              <div className="space-y-3">
-                {patientMetadata.age_range && (
-                  <div className="flex items-center gap-2">
-                    <User className="h-4 w-4 text-muted-foreground" />
-                    <div>
-                      <p className="text-sm font-medium">Age Range</p>
-                      <p className="text-sm text-muted-foreground">{patientMetadata.age_range}</p>
-                    </div>
-                  </div>
-                )}
-                {diagnoses.length > 0 && (
-                  <div className="flex items-center gap-2">
-                    <Calendar className="h-4 w-4 text-muted-foreground" />
-                    <div>
-                      <p className="text-sm font-medium">First Diagnosis</p>
-                      <p className="text-sm text-muted-foreground">
-                        {format(new Date(diagnoses[diagnoses.length - 1].created_at), "PPP")}
-                      </p>
-                    </div>
-                  </div>
-                )}
-                {diagnoses.length > 0 && (
-                  <div className="flex items-center gap-2">
-                    <Clock className="h-4 w-4 text-muted-foreground" />
-                    <div>
-                      <p className="text-sm font-medium">Latest Diagnosis</p>
-                      <p className="text-sm text-muted-foreground">
-                        {format(new Date(diagnoses[0].created_at), "PPP")}
-                      </p>
-                    </div>
-                  </div>
-                )}
-                {diagnoses.length > 0 && (
-                  <div className="flex items-center gap-2">
-                    <Hospital className="h-4 w-4 text-muted-foreground" />
-                    <div>
-                      <p className="text-sm font-medium">Hospital</p>
-                      <p className="text-sm text-muted-foreground">{diagnoses[0].hospitals?.name}</p>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
 
-        <div className="lg:col-span-2">
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <Card>
-              <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-lg font-medium">Patient Diagnoses</CardTitle>
-                  <TabsList className="grid w-full max-w-md grid-cols-2">
-                    <TabsTrigger value="overview" className="tab-button">
-                      <FileText className="mr-2 h-4 w-4" />
-                      Overview
-                    </TabsTrigger>
-                    <TabsTrigger value="diagnoses" className="tab-button">
-                      <FileText className="mr-2 h-4 w-4" />
-                      All Diagnoses
-                    </TabsTrigger>
-                  </TabsList>
+              <div className="flex items-center gap-2">
+                <FileText className="h-4 w-4 text-muted-foreground" />
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Patient ID</p>
+                  <p className="font-medium">{patient.id}</p>
                 </div>
-              </CardHeader>
-              <CardContent>
-                <TabsContent value="overview" className="mt-0 space-y-4">
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Calendar className="h-4 w-4 text-muted-foreground" />
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Date of Birth</p>
+                  <p className="font-medium">{formatDateOfBirth()}</p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Clock className="h-4 w-4 text-muted-foreground" />
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Age</p>
+                  <p className="font-medium">{calculateAge()}</p>
+                </div>
+              </div>
+
+              {patient.patient_info?.demographics?.gender && (
+                <div className="flex items-center gap-2">
+                  <UserRound className="h-4 w-4 text-muted-foreground" />
                   <div>
-                    <h3 className="mb-4 text-lg font-medium">Diagnosis Summary</h3>
-                    {diagnoses.length === 0 ? (
-                      <div className="flex h-40 flex-col items-center justify-center rounded-md border border-dashed p-8 text-center">
-                        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
-                          <FileText className="h-6 w-6 text-primary" />
-                        </div>
-                        <h3 className="mt-4 text-sm font-medium">No diagnoses available</h3>
-                        <p className="mt-2 text-xs text-muted-foreground">
-                          This patient has no diagnoses recorded in the system.
-                        </p>
-                      </div>
-                    ) : (
-                      <div className="space-y-6">
-                        <div className="grid gap-4 md:grid-cols-2">
-                          <Card>
-                            <CardContent className="p-4">
-                              <div className="text-center">
-                                <p className="text-sm font-medium text-muted-foreground">Total Diagnoses</p>
-                                <p className="text-3xl font-bold mt-1">{diagnoses.length}</p>
-                              </div>
-                            </CardContent>
-                          </Card>
-                          <Card>
-                            <CardContent className="p-4">
-                              <div className="text-center">
-                                <p className="text-sm font-medium text-muted-foreground">Latest Diagnosis</p>
-                                <p className="text-xl font-medium mt-1">{diagnoses[0].title}</p>
-                                <p className="text-xs text-muted-foreground mt-1">
-                                  {format(new Date(diagnoses[0].created_at), "PPP")}
-                                </p>
-                              </div>
-                            </CardContent>
-                          </Card>
-                        </div>
+                    <p className="text-sm font-medium text-muted-foreground">Gender</p>
+                    <p className="font-medium capitalize">{patient.patient_info.demographics.gender}</p>
+                  </div>
+                </div>
+              )}
 
-                        <h4 className="font-medium mt-6">Recent Diagnoses</h4>
-                        <div className="space-y-4">
-                          {diagnoses.slice(0, 3).map((diagnosis) => (
-                            <Card key={diagnosis.id}>
-                              <CardContent className="p-4">
-                                <div className="flex justify-between items-center">
-                                  <div>
-                                    <h5 className="font-medium">{diagnosis.title}</h5>
-                                    <p className="text-sm text-muted-foreground">
-                                      {format(new Date(diagnosis.created_at), "PPP")}
-                                    </p>
-                                    {diagnosis.doctor_notes && (
-                                      <p className="text-sm mt-2 line-clamp-2">{diagnosis.doctor_notes}</p>
-                                    )}
-                                  </div>
-                                  <Link href={`/diagnoses/${diagnosis.id}`}>
-                                    <Button variant="outline" size="sm">
-                                      View
-                                    </Button>
-                                  </Link>
-                                </div>
-                              </CardContent>
-                            </Card>
-                          ))}
-                        </div>
+              {patient.patient_info?.medical?.bloodType && patient.patient_info.medical.bloodType !== "unknown" && (
+                <div className="flex items-center gap-2">
+                  <Heart className="h-4 w-4 text-muted-foreground" />
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">Blood Type</p>
+                    <p className="font-medium">{patient.patient_info.medical.bloodType}</p>
+                  </div>
+                </div>
+              )}
+
+              {patient.patient_info?.contact?.phone && (
+                <div className="flex items-center gap-2">
+                  <Phone className="h-4 w-4 text-muted-foreground" />
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">Phone</p>
+                    <p className="font-medium">{patient.patient_info.contact.phone}</p>
+                  </div>
+                </div>
+              )}
+
+              {patient.patient_info?.contact?.email && (
+                <div className="flex items-center gap-2">
+                  <Mail className="h-4 w-4 text-muted-foreground" />
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">Email</p>
+                    <p className="font-medium">{patient.patient_info.contact.email}</p>
+                  </div>
+                </div>
+              )}
+
+              {patient.patient_info?.contact?.address && (
+                <div className="flex items-start gap-2">
+                  <MapPin className="h-4 w-4 text-muted-foreground mt-0.5" />
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">Address</p>
+                    <p className="font-medium">{patient.patient_info.contact.address}</p>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {patient.patient_info?.medical?.allergies && (
+              <div className="mt-4 rounded-md bg-red-50 p-3">
+                <div className="flex items-start">
+                  <AlertCircle className="h-5 w-5 text-red-600 mt-0.5 mr-2" />
+                  <div>
+                    <h3 className="text-sm font-medium text-red-800">Allergies</h3>
+                    <p className="mt-1 text-sm text-red-700">{patient.patient_info.medical.allergies}</p>
+                  </div>
+                </div>
+              </div>
+            )}
+          </CardContent>
+          <CardFooter>
+            <Button variant="outline" className="w-full" asChild>
+              <Link href={`/patients/${patient.id}/edit`}>
+                <PenLine className="mr-2 h-4 w-4" />
+                Edit Patient Information
+              </Link>
+            </Button>
+          </CardFooter>
+        </Card>
+
+        <div className="md:col-span-2">
+          <Tabs value={activeTab} onValueChange={setActiveTab}>
+            <TabsList className="grid w-full grid-cols-4">
+              <TabsTrigger value="overview">Overview</TabsTrigger>
+              <TabsTrigger value="visits">Visits</TabsTrigger>
+              <TabsTrigger value="diagnoses">Diagnoses</TabsTrigger>
+              <TabsTrigger value="medical">Medical Info</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="overview" className="mt-6 space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Patient Summary</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-6">
+                    <PatientTimeline patient={patient} />
+
+                    {patient.visits && patient.visits.length > 0 && (
+                      <div>
+                        <h3 className="text-lg font-medium mb-3">Recent Vitals</h3>
+                        <PatientVitalsChart visits={patient.visits} />
                       </div>
                     )}
-                  </div>
-                </TabsContent>
 
-                <TabsContent value="diagnoses" className="mt-0 space-y-4">
-                  <div className="relative w-full">
-                    <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
-                    <Input
-                      placeholder="Search diagnoses..."
-                      className="pl-9 mb-4"
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                    />
-                  </div>
-
-                  {filteredDiagnoses.length === 0 ? (
-                    <div className="flex h-40 flex-col items-center justify-center rounded-md border border-dashed p-8 text-center">
-                      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
-                        <Search className="h-6 w-6 text-primary" />
+                    {patient.patient_info?.medical?.chronicConditions && (
+                      <div>
+                        <h3 className="text-lg font-medium mb-2">Chronic Conditions</h3>
+                        <p className="text-gray-700">{patient.patient_info.medical.chronicConditions}</p>
                       </div>
-                      <h3 className="mt-4 text-sm font-medium">No diagnoses found</h3>
-                      <p className="mt-2 text-xs text-muted-foreground">
-                        {searchQuery
-                          ? "We couldn't find any diagnoses matching your search criteria."
-                          : "This patient has no diagnoses recorded in the system."}
+                    )}
+
+                    <div>
+                      <h3 className="text-lg font-medium mb-2">Diagnosis Types</h3>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {Array.from(
+                          new Set(
+                            (patient.diagnoses ?? []).map((d: any) => {
+                              if (d.patient_metadata?.scan_type) return d.patient_metadata.scan_type;
+                              const match = d.title?.match(/(CT|MRI|X-Ray|Ultrasound)/i);
+                              return match ? match[0] : "Other";
+                            })
+                          )
+                        ).map((type) => (
+                          <Badge key={type as string} variant="outline" className="bg-primary/10">
+                            {type as string}
+                          </Badge>
+                        ))}
+
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="visits" className="mt-6 space-y-4">
+              <div className="flex items-center gap-2">
+                <div className="relative flex-1 max-w-md">
+                  <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
+                  <Input
+                    placeholder="Search visits..."
+                    className="pl-9"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                  />
+                </div>
+                <Dialog>
+                  <DialogTrigger asChild>
+                    <Button>
+                      <PenLine className="mr-2 h-4 w-4" />
+                      Record Visit
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="max-w-3xl">
+                    <DialogHeader>
+                      <DialogTitle>Record Patient Visit</DialogTitle>
+                      <DialogDescription>
+                        Enter the details of the patient visit. This will be added to the patient's medical record.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <PatientVisitForm
+                      patient={patient}
+                      hospitalId={currentUser.hospital_id}
+                      userId={currentUser.id}
+                      doctorName={currentUser.full_name}
+                      onSubmitted={handleVisitSubmitted}
+                    />
+                  </DialogContent>
+                </Dialog>
+              </div>
+
+              {filteredVisits.length === 0 ? (
+                <Card>
+                  <CardContent className="flex flex-col items-center justify-center py-10 text-center">
+                    <ClipboardList className="h-12 w-12 text-gray-400 mb-4" />
+                    <h3 className="text-lg font-medium">No Visits Found</h3>
+                    <p className="text-sm text-muted-foreground mt-1 max-w-md">
+                      {searchQuery
+                        ? "No visits match your search criteria. Try a different search term."
+                        : "This patient doesn't have any recorded visits yet. Use the 'Record Visit' button to add one."}
+                    </p>
+                  </CardContent>
+                </Card>
+              ) : (
+                <Card>
+                  <CardContent className="p-0">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Date</TableHead>
+                          <TableHead>Reason</TableHead>
+                          <TableHead>Doctor</TableHead>
+                          <TableHead>Vitals</TableHead>
+                          <TableHead className="text-right">Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {filteredVisits.map((visit: any) => (
+                          <TableRow key={visit.id}>
+                            <TableCell>{format(parseISO(visit.visit_date), "MMM d, yyyy")}</TableCell>
+                            <TableCell className="font-medium">{visit.reason}</TableCell>
+                            <TableCell>{visit.users?.full_name || "Unknown"}</TableCell>
+                            <TableCell>
+                              {visit.vitals ? (
+                                <div className="flex items-center">
+                                  <Activity className="h-4 w-4 text-primary mr-1" />
+                                  <span>Recorded</span>
+                                </div>
+                              ) : (
+                                "Not recorded"
+                              )}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <Link href={`/patients/${patient.id}/visits/${visit.id}`}>
+                                <Button variant="ghost" size="icon" title="View visit details">
+                                  <Eye className="h-4 w-4" />
+                                </Button>
+                              </Link>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </CardContent>
+                </Card>
+              )}
+            </TabsContent>
+
+            <TabsContent value="diagnoses" className="mt-6 space-y-4">
+              <div className="flex items-center gap-2">
+                <div className="relative flex-1 max-w-md">
+                  <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
+                  <Input
+                    placeholder="Search diagnoses..."
+                    className="pl-9"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                  />
+                </div>
+                <Button asChild>
+                  <Link href={`/diagnoses/new?patientId=${patient.id}`}>
+                    <FileText className="mr-2 h-4 w-4" />
+                    New Diagnosis
+                  </Link>
+                </Button>
+              </div>
+
+              <Card>
+                <CardContent className="p-0">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Title</TableHead>
+                        <TableHead>Date</TableHead>
+                        <TableHead>Doctor</TableHead>
+                        <TableHead>Images</TableHead>
+                        <TableHead className="text-right">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredDiagnoses.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={5} className="h-24 text-center">
+                            No diagnoses found matching your search criteria.
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        filteredDiagnoses.map((diagnosis: any) => (
+                          <TableRow key={diagnosis.id}>
+                            <TableCell className="font-medium">{diagnosis.title}</TableCell>
+                            <TableCell>{format(parseISO(diagnosis.created_at), "MMM d, yyyy")}</TableCell>
+                            <TableCell>{diagnosis.users?.full_name || "Unknown"}</TableCell>
+                            <TableCell>
+                              {diagnosis.image_links && diagnosis.image_links.length > 0 ? (
+                                <Badge variant="outline" className="bg-blue-50 text-blue-700">
+                                  {diagnosis.image_links.length}
+                                </Badge>
+                              ) : (
+                                "0"
+                              )}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <Link href={`/diagnoses/${diagnosis.id}`}>
+                                <Button variant="ghost" size="icon" title="View diagnosis details">
+                                  <Eye className="h-4 w-4" />
+                                </Button>
+                              </Link>
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="medical" className="mt-6 space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Medical Information</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  {patient.patient_info?.medical?.bloodType && (
+                    <div>
+                      <h3 className="text-lg font-medium mb-2">Blood Type</h3>
+                      <p className="text-gray-700">
+                        {patient.patient_info.medical.bloodType === "unknown"
+                          ? "Not recorded"
+                          : patient.patient_info.medical.bloodType}
                       </p>
                     </div>
-                  ) : (
-                    <div className="space-y-4">
-                      {filteredDiagnoses.map((diagnosis) => (
-                        <Card key={diagnosis.id}>
-                          <CardContent className="p-4">
-                            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                              <div>
-                                <div className="flex items-center gap-2">
-                                  <h5 className="font-medium">{diagnosis.title}</h5>
-                                  {diagnosis.image_links && diagnosis.image_links.length > 0 && (
-                                    <Badge variant="outline" className="bg-blue-50 text-blue-700">
-                                      {diagnosis.image_links.length} images
-                                    </Badge>
-                                  )}
-                                </div>
-                                <p className="text-sm text-muted-foreground">
-                                  {format(new Date(diagnosis.created_at), "PPP")} • Dr.{" "}
-                                  {diagnosis.users?.full_name || "Unknown"}
-                                </p>
-                                {diagnosis.doctor_notes && (
-                                  <p className="text-sm mt-2 line-clamp-2">{diagnosis.doctor_notes}</p>
-                                )}
-                              </div>
-                              <Link href={`/diagnoses/${diagnosis.id}`}>
-                                <Button>View Details</Button>
-                              </Link>
-                            </div>
-                          </CardContent>
-                        </Card>
-                      ))}
+                  )}
+
+                  {patient.patient_info?.medical?.allergies && (
+                    <div>
+                      <h3 className="text-lg font-medium mb-2">Allergies</h3>
+                      <div className="rounded-md bg-red-50 p-3">
+                        <div className="flex">
+                          <AlertCircle className="h-5 w-5 text-red-600 mt-0.5 mr-2" />
+                          <p className="text-red-700">{patient.patient_info.medical.allergies}</p>
+                        </div>
+                      </div>
                     </div>
                   )}
-                </TabsContent>
-              </CardContent>
-            </Card>
+
+                  {patient.patient_info?.medical?.chronicConditions && (
+                    <div>
+                      <h3 className="text-lg font-medium mb-2">Chronic Conditions</h3>
+                      <p className="text-gray-700">{patient.patient_info.medical.chronicConditions}</p>
+                    </div>
+                  )}
+
+                  {patient.visits && patient.visits.some((v: any) => v.medications) && (
+                    <div>
+                      <h3 className="text-lg font-medium mb-2">Current Medications</h3>
+                      <div className="space-y-2">
+                        {patient.visits
+                          .filter((v: any) => v.medications && v.medications.length > 0)
+                          .slice(0, 1)
+                          .map((visit: any) => (
+                            <div key={visit.id} className="space-y-2">
+                              {visit.medications.map((med: any, index: number) => (
+                                <div key={index} className="flex items-start gap-2 p-2 border rounded-md">
+                                  <Pill className="h-5 w-5 text-primary mt-0.5" />
+                                  <div>
+                                    <p className="font-medium">{med.name}</p>
+                                    <p className="text-sm text-muted-foreground">
+                                      {med.dosage} - {med.frequency}
+                                    </p>
+                                    {med.notes && <p className="text-sm mt-1">{med.notes}</p>}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {patient.patient_info?.emergency && (
+                    <div>
+                      <h3 className="text-lg font-medium mb-2">Emergency Contact</h3>
+                      {patient.patient_info.emergency.name ? (
+                        <div className="space-y-2">
+                          <p className="font-medium">{patient.patient_info.emergency.name}</p>
+                          {patient.patient_info.emergency.relation && (
+                            <p className="text-sm text-muted-foreground">
+                              Relationship: {patient.patient_info.emergency.relation}
+                            </p>
+                          )}
+                          {patient.patient_info.emergency.phone && (
+                            <div className="flex items-center gap-2">
+                              <Phone className="h-4 w-4 text-muted-foreground" />
+                              <p>{patient.patient_info.emergency.phone}</p>
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <p className="text-muted-foreground">No emergency contact information provided.</p>
+                      )}
+                    </div>
+                  )}
+
+                  {patient.patient_info?.notes && (
+                    <div>
+                      <h3 className="text-lg font-medium mb-2">Additional Notes</h3>
+                      <p className="text-gray-700 whitespace-pre-line">{patient.patient_info.notes}</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
           </Tabs>
         </div>
       </div>

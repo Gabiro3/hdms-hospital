@@ -29,7 +29,7 @@ export const SCAN_TYPE_TO_ENDPOINT = {
   MRI: "/api/diagnoses/create/brain-mri",
   "X-Ray": "/api/diagnoses/create/chest-14",
   Ultrasound: "/api/diagnoses/create/breast-ultrasound",
-  // Default to general endpoint for other scan types
+  "CT Kidney": "/api/diagnoses/create/ct-kidney",
   "Pneumonia": "/api/diagnoses/create/pneumonia",
   "PET Scan": "/api/analyze",
   "Fracture": "/api/diagnoses/create/bone-fracture",
@@ -137,6 +137,7 @@ export default function PatientForm({ onFormValuesChange, onScanTypeChange, defa
                   </FormControl>
                   <SelectContent>
                     <SelectItem value="X-Ray">Chest X-Ray (General Scan)</SelectItem>
+                    <SelectItem value="CT Kidney">CT Scan (Kidney Cyst, Stone, and Tumor Detection)</SelectItem>
                     <SelectItem value="MRI">MRI (Brain Cancer Detection)</SelectItem>
                     <SelectItem value="Pneumonia">Chest X-Ray / CT Scan (Pneumonia Detection)</SelectItem>
                     <SelectItem value="Ultrasound">Ultrasound (Breast Cancer Detection)</SelectItem>

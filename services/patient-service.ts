@@ -6,7 +6,7 @@ import { createServerSupabaseClient } from "@/lib/supabase/server"
  * Get a patient by ID
  * Note: In this system, patients are identified by their ID in diagnoses
  */
-export async function getPatientById(patientId: string) {
+export async function getPatientById(patientId: string, hospitalId?:string) {
   try {
     const supabase = createServerSupabaseClient()
 
@@ -166,5 +166,164 @@ export async function searchPatients(hospitalId: string, query: string) {
   } catch (error) {
     console.error(`Error searching patients for hospital ${hospitalId}:`, error)
     return { patients: [], error: "Failed to search patients" }
+  }
+}
+/**
+ * Create or update a patient
+ */
+export async function savePatient(patientData: any) {
+  try {
+    const supabase = createServerSupabaseClient()
+
+    // Check if patient exists
+    const { data: existingPatient, error: checkError } = await supabase
+      .from("patients")
+      .select("id")
+      .eq("id", patientData.id)
+      .maybeSingle()
+
+    if (checkError) throw checkError
+
+    // Add created_at if it's a new patient
+    if (!existingPatient) {
+      patientData.created_at = new Date().toISOString()
+    }
+
+    // Update the updated_at timestamp
+    patientData.updated_at = new Date().toISOString()
+
+    // Insert or update the patient
+    const { data, error } = await supabase.from("patients").upsert(patientData).select().single()
+
+    if (error) throw error
+
+    return { patient: data, error: null }
+  } catch (error) {
+    console.error("Error saving patient:", error)
+    return { patient: null, error: "Failed to save patient" }
+  }
+}
+
+/**
+ * Add a visit to a patient
+ */
+export async function addPatientVisit(visitData: any) {
+  try {
+    const supabase = createServerSupabaseClient()
+
+    // Add created_at timestamp
+    visitData.created_at = new Date().toISOString()
+
+    // Insert the visit
+    const { data, error } = await supabase.from("patient_visits").insert(visitData).select().single()
+
+    if (error) throw error
+
+    return { visit: data, error: null }
+  } catch (error) {
+    console.error("Error adding patient visit:", error)
+    return { visit: null, error: "Failed to add patient visit" }
+  }
+}
+
+/**
+ * Get visits for a patient
+ */
+export async function getPatientVisits(patientId: string, hospitalId: string) {
+  try {
+    const supabase = createServerSupabaseClient()
+
+    // Get all visits for this patient
+    const { data: visits, error } = await supabase
+      .from("patient_visits")
+      .select(`
+        *,
+        users (
+          id,
+          full_name,
+          email
+        )
+      `)
+      .eq("patient_id", patientId)
+      .eq("hospital_id", hospitalId)
+      .order("visit_date", { ascending: false })
+
+    if (error) throw error
+
+    return { visits, error: null }
+  } catch (error) {
+    console.error(`Error fetching visits for patient ${patientId}:`, error)
+    return { visits: null, error: "Failed to fetch patient visits" }
+  }
+}
+
+/**
+ * Generate a SOAP note for a patient visit
+ */
+export async function generateSoapNote(visitId: string, patientId: string, hospitalId: string) {
+  try {
+    const supabase = createServerSupabaseClient()
+
+    // Get the visit
+    const { data: visit, error: visitError } = await supabase
+      .from("patient_visits")
+      .select(`
+        *,
+        users (
+          id,
+          full_name,
+          email
+        )
+      `)
+      .eq("id", visitId)
+      .eq("patient_id", patientId)
+      .eq("hospital_id", hospitalId)
+      .single()
+
+    if (visitError) throw visitError
+
+    // Get the patient
+    const { patient, error: patientError } = await getPatientById(patientId, hospitalId)
+
+    if (patientError) throw patientError
+
+    // Generate the SOAP note
+    const soapNote = {
+      id: `soap-${visitId}`,
+      patient_id: patientId,
+      visit_id: visitId,
+      hospital_id: hospitalId,
+      created_at: new Date().toISOString(),
+      note_type: "SOAP",
+      content: {
+        subjective: visit.notes?.subjective || "No subjective information provided.",
+        objective: {
+          vitals: visit.vitals || {},
+          examination: visit.notes?.examination || "No examination information provided.",
+        },
+        assessment: visit.notes?.assessment || "No assessment provided.",
+        plan: visit.notes?.plan || "No plan provided.",
+      },
+      metadata: {
+        patient_name: patient?.name || "Unknown",
+        doctor_name: visit.users?.full_name || "Unknown",
+        visit_date: visit.visit_date,
+        visit_reason: visit.reason,
+      },
+    }
+
+    // Save the SOAP note
+    const { data: savedNote, error: saveError } = await supabase
+      .from("patient_notes")
+      .insert(soapNote)
+      .select()
+      .single()
+
+    if (saveError) throw saveError
+
+    return { note: savedNote, error: null }
+  } catch (error) {
+    console.error(`Error generating SOAP note for visit ${visitId}:`, error)
+    return { note: null, error: "Failed to generate SOAP note" }
   }
 }

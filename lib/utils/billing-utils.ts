@@ -6,6 +6,7 @@
 const DIAGNOSIS_COSTS = {
     "Chest X-ray": process.env.NEXT_PUBLIC_PNEUMONIA_PRICE,
     "Brain MRI": process.env.NEXT_PUBLIC_BRAIN_MRI_PRICE,
+    "Kidney CT": process.env.NEXT_PUBLIC_CT_KIDNEY_PRICE,
     "Mammography (Breast Cancer Detection)": process.env.NEXT_PUBLIC_MMG_PRICE,
     "Breast Ultrasound": process.env.NEXT_PUBLIC_ULTRASOUND_PRICE,
     "Pneumonia": process.env.NEXT_PUBLIC_PNEUMONIA_PRICE,

@@ -4,6 +4,9 @@ import { cookies } from "next/headers"
 import { redirect } from "next/navigation"
 import DashboardLayout from "@/components/layout/dashboard-layout"
 import PatientsList from "@/components/patients/patients-list"
+import { Button } from "@/components/ui/button"
+import { Plus } from "lucide-react"
+import Link from "next/link"
 
 export const metadata: Metadata = {
   title: "Patients | Hospital Diagnosis Management System",
@@ -31,14 +34,22 @@ export default async function PatientsPage() {
 
   return (
     <DashboardLayout>
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-gray-900">Patients</h1>
-          <p className="text-sm text-gray-500">View and manage patients in your hospital</p>
-        </div>
-
-        <PatientsList hospitalId={userData.hospital_id} />
+  <div className="space-y-6">
+    <div className="flex items-start justify-between">
+      <div>
+        <h1 className="text-2xl font-semibold tracking-tight text-gray-900">Patients</h1>
+        <p className="text-sm text-gray-500">View and manage patients in your hospital</p>
       </div>
-    </DashboardLayout>
+      <Link href="/patients/new">
+        <Button className="flex items-center gap-1">
+          <Plus className="h-4 w-4" /> Add Patient Record
+        </Button>
+      </Link>
+    </div>
+
+    <PatientsList hospitalId={userData.hospital_id} />
+  </div>
+</DashboardLayout>
+
   )
 }

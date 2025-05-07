@@ -8,6 +8,7 @@ export const GRADIO_MODELS = {
   BRAIN_MRI: "pb01/mri-brain-cancer-detection",
   CHEST_XRAY: "pb01/chest-multi-scanner-14",
   BONE_FRACTURE: "pb01/bone-fracture-detection",
+  KIDNEY_CT: "pb01/CT-Kidney",
   BREAST_ULTRASOUND: "pb01/breast-cancer-detection-ultrasound",
   GENERAL: "pb01/healthlink-beta", // Original general model
 }
@@ -108,6 +109,33 @@ export async function processChestXray(imageBlob: Blob) {
  * @returns The processing result
  */
 export async function processBoneFracture(imageBlob: Blob) {
+  try {
+    const client = await getGradioClient(GRADIO_MODELS.KIDNEY_CT)
+
+    const result = await client.predict("/predict", {
+      input_image: imageBlob,
+    })
+
+    return {
+      success: true,
+      data: result.data,
+      modelType: "ct-scan-kidney",
+    }
+  } catch (error) {
+    console.error("Error processing Kidney scan with Gradio:", error)
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Unknown error",
+      modelType: "xray-bone-fracture",
+    }
+  }
+}
+/**
+ * Process chest X-ray images
+ * @param imageBlob The image blob to process
+ * @returns The processing result
+ */
+export async function processKidneyImage(imageBlob: Blob) {
   try {
     const client = await getGradioClient(GRADIO_MODELS.BONE_FRACTURE)
 
