@@ -40,6 +40,7 @@ export interface Database {
           expertise: string | null
           is_verified: boolean
           is_admin: boolean
+          role: string | null
           created_at: string
           updated_at: string
         }
@@ -53,6 +54,7 @@ export interface Database {
           expertise?: string | null
           is_verified?: boolean
           is_admin?: boolean
+          role?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -66,6 +68,7 @@ export interface Database {
           expertise?: string | null
           is_verified?: boolean
           is_admin?: boolean
+          role?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -353,6 +356,117 @@ export interface Database {
           created_at?: string
           note_type?: string
           content?: Json
+        }
+      }
+      lab_results: {
+        Row: {
+          id: string
+          patient_id: string
+          hospital_id: string
+          created_by: string
+          title: string
+          result_type: string
+          status: string
+          results: Json
+          file_links: string[] | null
+          request_id: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          patient_id: string
+          hospital_id: string
+          created_by: string
+          title: string
+          result_type: string
+          status?: string
+          results: Json
+          file_links?: string[] | null
+          request_id?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          patient_id?: string
+          hospital_id?: string
+          created_by?: string
+          title?: string
+          result_type?: string
+          status?: string
+          results?: Json
+          file_links?: string[] | null
+          request_id?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      lab_requests: {
+        Row: {
+          id: string
+          patient_id: string
+          hospital_id: string
+          requested_by: string
+          assigned_to: string | null
+          test_type: string
+          priority: string
+          status: string
+          notes: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          patient_id: string
+          hospital_id: string
+          requested_by: string
+          assigned_to?: string | null
+          test_type: string
+          priority?: string
+          status?: string
+          notes?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          patient_id?: string
+          hospital_id?: string
+          requested_by?: string
+          assigned_to?: string | null
+          test_type?: string
+          priority?: string
+          status?: string
+          notes?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      lab_result_shares: {
+        Row: {
+          id: string
+          result_id: string
+          shared_by: string
+          shared_with: string
+          created_at: string
+          viewed_at: string | null
+        }
+        Insert: {
+          id?: string
+          result_id: string
+          shared_by: string
+          shared_with: string
+          created_at?: string
+          viewed_at?: string | null
+        }
+        Update: {
+          id?: string
+          result_id?: string
+          shared_by?: string
+          shared_with?: string
+          created_at?: string
+          viewed_at?: string | null
         }
       }
     }

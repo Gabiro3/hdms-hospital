@@ -20,7 +20,7 @@ import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { cn } from "@/lib/utils"
 import { savePatient } from "@/services/patient-service"
-import { toast } from "@/components/ui/use-toast"
+import { toast } from "@/hooks/use-toast"
 
 // Define the form schema
 const patientFormSchema = z.object({
@@ -281,7 +281,6 @@ export default function PatientForm({ hospitalId, userId, doctorName, existingPa
             mode="single"
             selected={field.value}
             onSelect={field.onChange}
-            captionLayout="dropdown" // Enables month & year dropdowns
             fromYear={1900}
             toYear={new Date().getFullYear()}
             disabled={(date) => date > new Date() || date < new Date("1900-01-01")}

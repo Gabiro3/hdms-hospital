@@ -78,6 +78,8 @@ export default function LoginForm() {
       }
 
       if (userData.hospital_id !== hospitalData.id) {
+        console.log("User hospital ID:", userData.hospital_id)
+        console.log("Provided hospital ID:", hospitalData.id)
         setError("You do not have access to this hospital")
         // Sign out the user since they don't have access
         await supabase.auth.signOut()

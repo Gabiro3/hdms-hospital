@@ -24,3 +24,21 @@ export async function uploadFile(
     return { url: null, error: "Failed to upload file" }
   }
 }
+
+export async function deleteFile(bucket: string, path: string): Promise<{ error: string | null }> {
+  try {
+    const supabase = createServerSupabaseClient()
+
+    // Delete the file
+    const { error } = await supabase.storage.from(bucket).remove([path])
+
+    if (error) {
+      throw error
+    }
+
+    return { error: null }
+  } catch (error) {
+    console.error("Error deleting file:", error)
+    return { error: "Failed to delete file" }
+  }
+}

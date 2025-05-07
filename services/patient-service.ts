@@ -453,3 +453,22 @@ export async function generateSoapNote(visitId: string, patientId: string, hospi
     return { note: null, error: "Failed to generate SOAP note" }
   }
 }
+
+export async function getGeneralPatients(hospitalId: string) {
+  try {
+    const supabase = createServerSupabaseClient()
+
+    // First try to get from patients table
+    const { data: patients, error } = await supabase
+      .from("patients")
+      .select("*")
+      .eq("hospital_id", hospitalId)
+
+
+    // If not found in patients table, try legacy method
+    return {patients: patients ? patients : [], error: null}
+  } catch (error) {
+    console.error(`Error fetching patients`, error)
+    return { patient: null, error: "Failed to fetch patient" }
+  }
+}

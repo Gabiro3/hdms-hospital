@@ -8,7 +8,7 @@ import Link from "next/link"
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 import type { User } from "@supabase/supabase-js"
 import { Button } from "@/components/ui/button"
-import { LayoutDashboard, FileText, Users, Hospital, LogOut, Menu, X, Bell, Search, HelpCircle, FileBarChartIcon, ScanLineIcon, FileArchive } from "lucide-react"
+import { LayoutDashboard, FileText, Users, Hospital, LogOut, Menu, X, Bell, Search, HelpCircle, FileBarChartIcon, ScanLineIcon, FileArchive, TestTube, BeakerIcon, FlaskConical } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import {
   DropdownMenu,
@@ -82,15 +82,24 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     )
   }
 
-  // Conditionally add the "Billings" navigation item based on `is_hpadmin`
-  const navigation = [
+  const baseNavigation = [
     { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
     { name: "Diagnoses", href: "/diagnoses", icon: FileText },
     { name: "Patients", href: "/patients", icon: Users },
-    { name: "Reports", href: "/reports", icon:  FileArchive },
-    ...(userProfile?.is_hpadmin ? [{ name: "Billings", href: "/billing", icon: FileBarChartIcon }] : []),
+    { name: "Reports", href: "/reports", icon: FileArchive },
+    { name: "Laboratory", href: "/lab", icon: FlaskConical },
     { name: "Support", href: "/support", icon: HelpCircle },
-  ]
+  ];
+  
+  const navigation = baseNavigation
+    .filter(item => {
+      if (userProfile?.role === "LAB") {
+        return ["Dashboard", "Patients", "Reports", "Laboratory", "Support"].includes(item.name);
+      }
+      return true; // for non-LAB users, show everything
+    })
+    .concat(userProfile?.is_hpadmin ? [{ name: "Billings", href: "/billing", icon: FileBarChartIcon }] : []);
+  
 
   const getInitials = (name: string) => {
     return name
