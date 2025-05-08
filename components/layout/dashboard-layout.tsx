@@ -8,7 +8,7 @@ import Link from "next/link"
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 import type { User } from "@supabase/supabase-js"
 import { Button } from "@/components/ui/button"
-import { LayoutDashboard, FileText, Users, Hospital, LogOut, Menu, X, Bell, Search, HelpCircle, FileBarChartIcon, ScanLineIcon, FileArchive, TestTube, BeakerIcon, FlaskConical } from "lucide-react"
+import { LayoutDashboard, FileText, Users, Hospital, LogOut, Menu, X, Bell, Search, HelpCircle, FileBarChartIcon, FileArchive, FlaskConical, ComputerIcon } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import {
   DropdownMenu,
@@ -86,6 +86,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
     { name: "Diagnoses", href: "/diagnoses", icon: FileText },
     { name: "Patients", href: "/patients", icon: Users },
+    { name: "Radiology & Imaging", href: "/radiology", icon: ComputerIcon },
     { name: "Reports", href: "/reports", icon: FileArchive },
     { name: "Laboratory", href: "/lab", icon: FlaskConical },
     { name: "Support", href: "/support", icon: HelpCircle },
@@ -96,11 +97,18 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
       if (userProfile?.role === "LAB") {
         return ["Dashboard", "Patients", "Reports", "Laboratory", "Support"].includes(item.name);
       }
-      return true; // for non-LAB users, show everything
-    })
-    .concat(userProfile?.is_hpadmin ? [{ name: "Billings", href: "/billing", icon: FileBarChartIcon }] : []);
   
-
+      if (userProfile?.role === "IMAGING") {
+        return ["Dashboard", "Patients", "Imaging", "Support"].includes(item.name);
+      }
+  
+      return true; // all items for other roles
+    })
+    .concat(
+      userProfile?.is_hpadmin
+        ? [{ name: "Billings", href: "/billing", icon: FileBarChartIcon }]
+        : []
+    );  
   const getInitials = (name: string) => {
     return name
       .split(" ")
@@ -144,7 +152,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
             <div className="px-3 py-4">
               <div className="space-y-1">
                 {navigation.map((item) => {
-                  const isActive = pathname === item.href
+                  const isActive = pathname.includes(item.href)
                   return (
                     <Link
                       key={item.name}

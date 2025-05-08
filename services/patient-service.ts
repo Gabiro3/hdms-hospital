@@ -472,3 +472,89 @@ export async function getGeneralPatients(hospitalId: string) {
     return { patient: null, error: "Failed to fetch patient" }
   }
 }
+/**
+ * Get a specific visit for a patient
+ */
+export async function getPatientVisit(visitId: string, patientId: string, hospitalId: string) {
+  try {
+    const supabase = createServerSupabaseClient()
+
+    // Get the visit
+    const { data: visit, error } = await supabase
+      .from("patient_visits")
+      .select(`
+        *,
+        users (
+          id,
+          full_name,
+          email
+        )
+      `)
+      .eq("id", visitId)
+      .eq("patient_id", patientId)
+      .eq("hospital_id", hospitalId)
+      .single()
+
+    if (error) throw error
+
+    return { visit, error: null }
+  } catch (error) {
+    console.error(`Error fetching visit with ID ${visitId}:`, error)
+    return { visit: null, error: "Failed to fetch patient visit" }
+  }
+}
+
+/**
+ * Add a modification record to the patient history
+ */
+export async function addPatientModification(modificationData: any) {
+  try {
+    const supabase = createServerSupabaseClient()
+
+    // Insert the modification record
+    const { data, error } = await supabase
+      .from("patient_modifications")
+      .insert({
+        id: crypto.randomUUID(),
+        patient_id: modificationData.patient_id,
+        hospital_id: modificationData.hospital_id,
+        user_id: modificationData.user_id,
+        user_name: modificationData.user_name,
+        changes: modificationData.changes,
+        timestamp: modificationData.timestamp,
+      })
+      .select()
+      .single()
+
+    if (error) throw error
+
+    return { modification: data, error: null }
+  } catch (error) {
+    console.error("Error adding patient modification:", error)
+    return { modification: null, error: "Failed to record modification" }
+  }
+}
+
+/**
+ * Get modification history for a patient
+ */
+export async function getPatientModificationHistory(patientId: string, hospitalId: string) {
+  try {
+    const supabase = createServerSupabaseClient()
+
+    // Get all modifications for this patient
+    const { data: history, error } = await supabase
+      .from("patient_modifications")
+      .select("*")
+      .eq("patient_id", patientId)
+      .eq("hospital_id", hospitalId)
+      .order("timestamp", { ascending: false })
+
+    if (error) throw error
+
+    return { history, error: null }
+  } catch (error) {
+    console.error(`Error fetching modification history for patient ${patientId}:`, error)
+    return { history: null, error: "Failed to fetch modification history" }
+  }
+}

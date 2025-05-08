@@ -469,6 +469,188 @@ export interface Database {
           viewed_at?: string | null
         }
       }
+      radiology_studies: {
+        Row: {
+          id: string
+          patient_id: string
+          patient_name: string | null
+          accession_number: string | null
+          study_description: string
+          study_date: string
+          modality: string
+          referring_physician: string | null
+          clinical_information: string | null
+          image_urls: string[] | null
+          image_count: number | null
+          report: Json | null
+          report_status: string | null
+          created_by: string
+          hospital_id: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          patient_id: string
+          patient_name?: string | null
+          accession_number?: string | null
+          study_description: string
+          study_date: string
+          modality: string
+          referring_physician?: string | null
+          clinical_information?: string | null
+          image_urls?: string[] | null
+          image_count?: number | null
+          report?: Json | null
+          report_status?: string | null
+          created_by: string
+          hospital_id: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          patient_id?: string
+          patient_name?: string | null
+          accession_number?: string | null
+          study_description?: string
+          study_date?: string
+          modality?: string
+          referring_physician?: string | null
+          clinical_information?: string | null
+          image_urls?: string[] | null
+          image_count?: number | null
+          report?: Json | null
+          report_status?: string | null
+          created_by?: string
+          hospital_id?: string
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      radiology_study_shares: {
+        Row: {
+          id: string
+          study_id: string
+          shared_by: string
+          shared_with: string
+          can_edit: boolean
+          message: string | null
+          created_at: string
+          viewed_at: string | null
+        }
+        Insert: {
+          id?: string
+          study_id: string
+          shared_by: string
+          shared_with: string
+          can_edit?: boolean
+          message?: string | null
+          created_at?: string
+          viewed_at?: string | null
+        }
+        Update: {
+          id?: string
+          study_id?: string
+          shared_by?: string
+          shared_with?: string
+          can_edit?: boolean
+          message?: string | null
+          created_at?: string
+          viewed_at?: string | null
+        }
+      }
+      radiology_annotations: {
+        Row: {
+          id: string
+          study_id: string
+          image_index: number
+          annotation_type: string
+          coordinates: Json
+          metadata: Json | null
+          created_by: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          study_id: string
+          image_index: number
+          annotation_type: string
+          coordinates: Json
+          metadata?: Json | null
+          created_by: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          study_id?: string
+          image_index?: number
+          annotation_type?: string
+          coordinates?: Json
+          metadata?: Json | null
+          created_by?: string
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      radiology_requests: {
+        Row: {
+          id: string
+          patient_id: string
+          patient_name: string | null
+          hospital_id: string
+          requested_by: string
+          assigned_to: string | null
+          study_type: string
+          clinical_details: string
+          priority: string
+          status: string
+          scheduled_date: string | null
+          rejection_reason: string | null
+          additional_notes: string | null
+          study_id: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          patient_id: string
+          patient_name?: string | null
+          hospital_id: string
+          requested_by: string
+          assigned_to?: string | null
+          study_type: string
+          clinical_details: string
+          priority?: string
+          status?: string
+          scheduled_date?: string | null
+          rejection_reason?: string | null
+          additional_notes?: string | null
+          study_id?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          patient_id?: string
+          patient_name?: string | null
+          hospital_id?: string
+          requested_by?: string
+          assigned_to?: string | null
+          study_type?: string
+          clinical_details?: string
+          priority?: string
+          status?: string
+          scheduled_date?: string | null
+          rejection_reason?: string | null
+          additional_notes?: string | null
+          study_id?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+      }
     }
   }
 }
