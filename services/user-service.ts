@@ -52,6 +52,42 @@ export async function getUserByEmail(email: string) {
     return { user: null, error: "Failed to fetch user" }
   }
 }
+export async function getUserWithHospitalDetails(id: string) {
+  try {
+    const supabase = createServerSupabaseClient()
+    const { data, error } = await supabase
+      .from("users")
+      .select(`
+        *,
+        hospitals(
+          id, 
+          name, 
+          code, 
+          address, 
+          city, 
+          state, 
+          zip, 
+          country, 
+          phone, 
+          email, 
+          website, 
+          logo_url, 
+          is_active, 
+          created_at, 
+          updated_at,
+          hospital_departments(id, name, description)
+        )
+      `)
+      .eq("id", id)
+      .single()
+
+    if (error) throw error
+    return { user: data, error: null }
+  } catch (error) {
+    console.error(`Error fetching user with hospital details for ID ${id}:`, error)
+    return { user: null, error: "Failed to fetch user with hospital details" }
+  }
+}
 
 export async function createUser(user: UserInsert) {
   try {
@@ -171,5 +207,123 @@ export async function updateLastLogin(id: string) {
   } catch (error) {
     console.error(`Error updating last login for user with ID ${id}:`, error)
     return { error: "Failed to update last login" }
+  }
+}
+
+export async function getUserNotificationPreferences(userId: string) {
+  try {
+    const supabase = createServerSupabaseClient()
+    const { data, error } = await supabase
+      .from("user_notification_preferences")
+      .select("*")
+      .eq("user_id", userId)
+      .single()
+
+    if (error && error.code !== "PGSQL_ERROR") throw error
+
+    // If no preferences exist, return default preferences
+    if (!data) {
+      return {
+        preferences: {
+          email_notifications: true,
+          push_notifications: true,
+          lab_results: true,
+          diagnosis_updates: true,
+          system_announcements: true,
+          patient_updates: true,
+        },
+        error: null,
+      }
+    }
+
+    return { preferences: data, error: null }
+  } catch (error) {
+    console.error(`Error fetching notification preferences for user ${userId}:`, error)
+    return { preferences: null, error: "Failed to fetch notification preferences" }
+  }
+}
+
+export async function updateUserNotificationPreferences(userId: string, preferences: any) {
+  try {
+    const supabase = createServerSupabaseClient()
+
+    // Check if preferences already exist
+    const { data: existingPrefs } = await supabase
+      .from("user_notification_preferences")
+      .select("id")
+      .eq("user_id", userId)
+      .single()
+
+    let result
+
+    if (existingPrefs) {
+      // Update existing preferences
+      result = await supabase
+        .from("user_notification_preferences")
+        .update({
+          ...preferences,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("user_id", userId)
+        .select()
+        .single()
+    } else {
+      // Insert new preferences
+      result = await supabase
+        .from("user_notification_preferences")
+        .insert({
+          user_id: userId,
+          ...preferences,
+        })
+        .select()
+        .single()
+    }
+
+    if (result.error) throw result.error
+
+    return { preferences: result.data, error: null }
+  } catch (error) {
+    console.error(`Error updating notification preferences for user ${userId}:`, error)
+    return { preferences: null, error: "Failed to update notification preferences" }
+  }
+}
+
+export async function getUserActivities(userId: string, options: any = {}) {
+  const supabase = createServerSupabaseClient()
+
+  const { page = 1, limit = 20, action_type, resource_type, start_date, end_date } = options
+
+  try {
+    let query = supabase
+      .from("user_activities")
+      .select("*")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false })
+      .range((page - 1) * limit, page * limit - 1)
+
+    if (action_type) {
+      query = query.eq("action", action_type)
+    }
+
+    if (resource_type) {
+      query = query.eq("resource_type", resource_type)
+    }
+
+    if (start_date) {
+      query = query.gte("created_at", start_date)
+    }
+
+    if (end_date) {
+      query = query.lte("created_at", end_date)
+    }
+
+    const { data, error } = await query
+
+    if (error) throw error
+
+    return data || []
+  } catch (error) {
+    console.error("Error fetching user activities:", error)
+    return []
   }
 }

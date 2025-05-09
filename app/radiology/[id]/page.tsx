@@ -1,22 +1,15 @@
-import type { Metadata } from "next"
 import { redirect, notFound } from "next/navigation"
 import { cookies } from "next/headers"
-import DashboardLayout from "@/components/layout/dashboard-layout"
-import RadiologyViewer from "@/components/radiology/radiology-viewer"
 import { createServerComponentClient } from "@supabase/auth-helpers-nextjs"
 import { getRadiologyStudyById } from "@/services/radiology-service"
-
-export const metadata: Metadata = {
-  title: "Radiology Viewer | Hospital Diagnosis Management System",
-  description: "Advanced radiology image viewer and reporting interface",
-}
+import RadiologyViewerContainer from "@/components/radiology/radiology-viewer-container"
 
 export default async function RadiologyViewerPage({
   params,
 }: {
   params: { id: string }
 }) {
-    const supabase = createServerComponentClient({ cookies })
+  const supabase = createServerComponentClient({ cookies })
 
   // Check if user is authenticated
   const {
@@ -37,7 +30,7 @@ export default async function RadiologyViewerPage({
   }
 
   // Get user data
-  const { data: userData } = await supabase.from("users").select("hospital_id, id, full_name, role").eq("id", user.id).single()
+  const { data: userData } = await supabase.from("users").select("hospital_id").eq("id", user.id).single()
 
   if (!userData) {
     redirect("/login")
@@ -50,9 +43,5 @@ export default async function RadiologyViewerPage({
     notFound()
   }
 
-  return (
-    <DashboardLayout>
-      <RadiologyViewer study={study} currentUser={userData} />
-    </DashboardLayout>
-  )
+  return <RadiologyViewerContainer initialStudy={study} currentUser={userData} />
 }

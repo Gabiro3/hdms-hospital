@@ -1,101 +1,115 @@
-import { createServerSupabaseClient } from "@/lib/supabase/server"
-import { type NextRequest, NextResponse } from "next/server"
-import { v4 as uuidv4 } from "uuid"
-import { processBrainMRI, BrainMRIResult } from "@/lib/utils/gradio-client"
+import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { type NextRequest, NextResponse } from "next/server";
+import { v4 as uuidv4 } from "uuid";
+import { processBrainMRI, BrainMRIResult } from "@/lib/utils/gradio-client";
 
 export async function POST(request: NextRequest) {
   try {
-    const formData = await request.formData()
-    const supabase = createServerSupabaseClient()
+    const formData = await request.formData();
+    const supabase = createServerSupabaseClient();
 
     // Extract form values
-    const metadata = formData.get("metadata") as string
-    const patientMetadata = metadata ? JSON.parse(metadata) : {}
+    const metadata = formData.get("metadata") as string;
+    const patientMetadata = metadata ? JSON.parse(metadata) : {};
 
-    const { patientName, patientId, ageRange, scanType, notes = "" } = patientMetadata
-    const userId = formData.get("userId") as string
+    const {
+      patientName,
+      patientId,
+      ageRange,
+      scanType,
+      notes = "",
+    } = patientMetadata;
+    const userId = formData.get("userId") as string;
 
-    const hospitalId = (formData.get("hospitalId") as string) || userId
+    const hospitalId = (formData.get("hospitalId") as string) || userId;
 
     if (!patientName || !patientId || !ageRange || !scanType) {
-      return NextResponse.json({ error: "Missing required patient information" }, { status: 400 })
+      return NextResponse.json(
+        { error: "Missing required patient information" },
+        { status: 400 }
+      );
     }
 
     // Get image file
-    const imageFile = formData.get("image") as File | null
+    const imageFile = formData.get("image") as File | null;
 
     if (!imageFile) {
-      return NextResponse.json({ error: "No image provided" }, { status: 400 })
+      return NextResponse.json({ error: "No image provided" }, { status: 400 });
     }
 
     // Generate a unique ID for this diagnosis
-    const diagnosisId = uuidv4()
+    const diagnosisId = uuidv4();
 
     // Step 1: Convert File to Blob for processing
-    const imageBlob = new Blob([await imageFile.arrayBuffer()], { type: imageFile.type })
+    const imageBlob = new Blob([await imageFile.arrayBuffer()], {
+      type: imageFile.type,
+    });
 
-    // Step 2: Process the image with the brain MRI model
-    console.log("Processing brain MRI image...")
-    const aiResult: BrainMRIResult = await processBrainMRI(imageBlob)
-    console.log("AI Result:", aiResult)
+    const aiResult: BrainMRIResult = await processBrainMRI(imageBlob);
 
     if (!aiResult.success) {
-      return NextResponse.json({ error: aiResult.error || "Failed to process brain MRI" }, { status: 500 })
+      return NextResponse.json(
+        { error: aiResult.error || "Failed to process brain MRI" },
+        { status: 500 }
+      );
     }
 
-    const imageUrls: string[] = []
-    let processedImageUrl = null
+    const imageUrls: string[] = [];
+    let processedImageUrl = null;
 
     // Step 3: Fetch and store the result image
     if (aiResult.data[0]?.url) {
       try {
-        const resultImageUrl = aiResult.data[0].url
-        console.log("Downloading image from URL:", resultImageUrl)
+        const resultImageUrl = aiResult.data[0].url;
 
-        const response = await fetch(resultImageUrl)
-        const resultImageBlob = await response.blob()
+        const response = await fetch(resultImageUrl);
+        const resultImageBlob = await response.blob();
 
-        const processedFileName = `${diagnosisId}/processed-${Date.now()}.webp`
+        const processedFileName = `${diagnosisId}/processed-${Date.now()}.webp`;
 
         const { error: processedUploadError } = await supabase.storage
           .from("diagnosis-images")
           .upload(processedFileName, resultImageBlob, {
             contentType: "image/webp",
-          })
+          });
 
         if (processedUploadError) {
-          console.error("Error uploading processed image:", processedUploadError)
+          console.error(
+            "Error uploading processed image:",
+            processedUploadError
+          );
         } else {
           const { data: processedUrlData } = await supabase.storage
             .from("diagnosis-images")
-            .getPublicUrl(processedFileName)
+            .getPublicUrl(processedFileName);
 
-          processedImageUrl = processedUrlData.publicUrl
-          imageUrls.push(processedImageUrl)
+          processedImageUrl = processedUrlData.publicUrl;
+          imageUrls.push(processedImageUrl);
         }
       } catch (error) {
-        console.error("Error processing result image:", error)
+        console.error("Error processing result image:", error);
       }
     }
 
     // Step 4: Prepare AI analysis results
-    const confidence = aiResult.data[2] || null
-    const computationTime = aiResult.data[3] || null
-    const label = aiResult.data[1]?.label || "Unknown"
+    const confidence = aiResult.data[2] || null;
+    const computationTime = aiResult.data[3] || null;
+    const label = aiResult.data[1]?.label || "Unknown";
 
     const aiAnalysisResults = {
       model_type: "brain-mri",
       model_name: aiResult.modelType || "mri-brain-cancer-detection",
-      overall_summary: `${label.toUpperCase()} (Confidence: ${confidence ? confidence.toFixed(2) : "N/A"}%)`,
+      overall_summary: `${label.toUpperCase()} (Confidence: ${
+        confidence ? confidence.toFixed(2) : "N/A"
+      }%)`,
       label,
       confidence,
       computation_time: computationTime,
       processed_image_url: processedImageUrl,
       analysis_timestamp: new Date().toISOString(),
-    }
+    };
 
     // Step 5: Store in Supabase database
-    console.log("Creating diagnosis record in database...")
     const { data: diagnosis, error: dbError } = await supabase
       .from("diagnoses")
       .insert({
@@ -114,11 +128,14 @@ export async function POST(request: NextRequest) {
         },
       })
       .select()
-      .single()
+      .single();
 
     if (dbError) {
-      console.error("Error creating diagnosis record:", dbError)
-      return NextResponse.json({ error: "Failed to create diagnosis record" }, { status: 500 })
+      console.error("Error creating diagnosis record:", dbError);
+      return NextResponse.json(
+        { error: "Failed to create diagnosis record" },
+        { status: 500 }
+      );
     }
 
     // Return success response with diagnosis ID and details
@@ -127,15 +144,15 @@ export async function POST(request: NextRequest) {
       diagnosisId,
       imageUrls,
       aiAnalysisResults,
-    })
+    });
   } catch (error) {
-    console.error("Error in brain MRI processing endpoint:", error)
+    console.error("Error in brain MRI processing endpoint:", error);
     return NextResponse.json(
       {
         error: error instanceof Error ? error.message : "Unknown server error",
         details: error instanceof Error ? error.stack : undefined,
       },
-      { status: 500 },
-    )
+      { status: 500 }
+    );
   }
 }

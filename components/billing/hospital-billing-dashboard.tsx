@@ -248,7 +248,6 @@ export default function HospitalBillingDashboard({
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                {console.log(billingData.overall)}
                 {billingData?.overall.diagnosisCounts &&
   Object.entries(billingData.overall.diagnosisCounts).map(([type, count]) => (
     <div key={type} className="flex items-center justify-between">

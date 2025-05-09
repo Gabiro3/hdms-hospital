@@ -472,6 +472,7 @@ export async function getGeneralPatients(hospitalId: string) {
     return { patient: null, error: "Failed to fetch patient" }
   }
 }
+
 /**
  * Get a specific visit for a patient
  */

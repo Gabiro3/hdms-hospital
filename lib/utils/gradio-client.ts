@@ -36,7 +36,6 @@ export async function getGradioClient(modelId: string) {
   if (!clientCache[modelId]) {
     try {
       clientCache[modelId] = await Client.connect(modelId)
-      console.log(`Connected to Gradio model: ${modelId}`)
     } catch (error) {
       console.error(`Failed to connect to Gradio model ${modelId}:`, error)
       throw new Error(
@@ -170,7 +169,6 @@ export async function processBreastUltrasound(imageBlob: Blob) {
     const result = await client.predict("/predict", {
       input_image: imageBlob,
     })
-    console.log(result.data)
 
     return {
       success: true,

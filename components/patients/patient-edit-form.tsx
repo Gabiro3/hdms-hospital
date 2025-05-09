@@ -23,7 +23,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { cn } from "@/lib/utils"
 import { savePatient, getPatientModificationHistory, addPatientModification } from "@/services/patient-service"
-import { toast } from "@/components/ui/use-toast"
+import { toast } from "@/hooks/use-toast"
 import PatientModificationHistory from "./patient-modification-history"
 
 // Define the form schema
@@ -291,6 +291,7 @@ export default function PatientEditForm({ hospitalId, userId, doctorName, existi
       toast({
         title: "Patient Updated",
         description: `${data.name}'s information has been updated successfully.`,
+        variant: "default"
       })
 
       // Redirect to patient page

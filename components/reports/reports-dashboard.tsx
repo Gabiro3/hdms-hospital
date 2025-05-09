@@ -11,7 +11,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { FileText, FilePlus, Search, MoreVertical, Share2, Eye, Edit, Trash2, UserCircle, Calendar } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { format } from "date-fns"
-import { toast } from "@/components/ui/use-toast"
+import { toast } from "@/hooks/use-toast"
 import { deleteReport } from "@/services/report-service"
 import CreateReportDialog from "./create-report-dialog"
 

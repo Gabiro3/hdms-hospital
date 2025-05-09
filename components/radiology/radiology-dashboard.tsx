@@ -12,7 +12,7 @@ import { format } from "date-fns"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { toast } from "@/components/ui/use-toast"
+import { toast } from "@/hooks/use-toast"
 import NewStudyDialog from "./new-study-dialog"
 
 interface RadiologyDashboardProps {
@@ -82,16 +82,16 @@ export default function RadiologyDashboard({ studies, currentUser }: RadiologyDa
           <p className="text-muted-foreground">View, analyze and report on radiological studies</p>
         </div>
         {/* Button group */}
-  <div className="flex gap-2">
-    <Button onClick={() => setShowNewStudyDialog(true)}>
-      <FilePlus className="mr-2 h-4 w-4" />
-      New Study
-    </Button>
-    <Button onClick={() => redirect("/radiology/shared")} variant={"outline"}>
-      <Share2Icon className="mr-2 h-4 w-4" />
-      Shared Studies
-    </Button>
-  </div>
+        <div className="flex gap-2">
+          <Button onClick={() => setShowNewStudyDialog(true)}>
+            <FilePlus className="mr-2 h-4 w-4" />
+            New Study
+          </Button>
+          <Button onClick={() => redirect("/radiology/shared")} variant={"outline"}>
+            <Share2Icon className="mr-2 h-4 w-4" />
+            Shared Studies
+          </Button>
+        </div>
       </div>
 
       {/* Stats Cards */}
@@ -242,8 +242,8 @@ export default function RadiologyDashboard({ studies, currentUser }: RadiologyDa
                                 <Badge variant="outline">{study.modality}</Badge>
                                 <Badge
                                   variant={
-                                    study.report_status === "completed"
-                                      ? "secondary"
+                                    study.report_status === "final"
+                                      ? "outline"
                                       : study.report_status === "in-progress"
                                         ? "outline"
                                         : "default"
@@ -357,8 +357,116 @@ export default function RadiologyDashboard({ studies, currentUser }: RadiologyDa
             </Card>
           ) : (
             <div className="space-y-6">
-              {/* Same view as recent but filtered */}
-              {/* Implementation similar to "recent" tab */}
+              {Object.entries(studiesByDate)
+              .map(([date, dateStudies]) => {
+                const userStudies = dateStudies.filter((study) => study.created_by === currentUser.id);
+                return userStudies.length > 0 ? [date, userStudies] : null;
+              })
+              .filter((entry): entry is [string, any[]] => entry !== null) // remove empty entries
+              .sort(([dateA], [dateB]) => new Date(dateB).getTime() - new Date(dateA).getTime())
+                .map(([date, dateStudies]) => (
+                  <div key={date}>
+                    <h2 className="text-lg font-medium mb-4">{format(new Date(date), "MMMM d, yyyy")}</h2>
+                    {viewMode === "grid" ? (
+                      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                        {dateStudies.map((study) => (
+                          <Card key={study.id} className="overflow-hidden">
+                            <CardHeader className="pb-2">
+                              <div className="flex justify-between items-center">
+                                <Badge variant="outline">{study.modality}</Badge>
+                                <Badge
+                                  variant={
+                                    study.report_status === "final"
+                                      ? "outline"
+                                      : study.report_status === "in-progress"
+                                        ? "outline"
+                                        : "default"
+                                  }
+                                >
+                                  {study.report_status || "Pending"}
+                                </Badge>
+                              </div>
+                              <CardTitle className="text-base mt-2 line-clamp-1">{study.study_description}</CardTitle>
+                              <CardDescription className="line-clamp-1">
+                                {study.patient_name || "Unknown Patient"}
+                              </CardDescription>
+                            </CardHeader>
+                            <CardContent className="pb-2">
+                              <div className="flex justify-between items-center text-sm mb-2">
+                                <div className="flex items-center">
+                                  <Calendar className="h-4 w-4 mr-1 text-muted-foreground" />
+                                  <span>{format(new Date(study.study_date), "h:mm a")}</span>
+                                </div>
+                                <div className="flex items-center">
+                                  <ImageIcon className="h-4 w-4 mr-1 text-muted-foreground" />
+                                  <span>{study.image_count || 0} images</span>
+                                </div>
+                              </div>
+                              <div className="flex items-center text-sm">
+                                <User className="h-4 w-4 mr-1 text-muted-foreground" />
+                                <span className="line-clamp-1">Patient ID: {study.patient_id || "Unknown"}</span>
+                              </div>
+                            </CardContent>
+                            <CardFooter>
+                              <Button asChild className="w-full">
+                                <Link href={`/radiology/${study.id}`}>View Study</Link>
+                              </Button>
+                            </CardFooter>
+                          </Card>
+                        ))}
+                      </div>
+                    ) : (
+                      <Card>
+                        <div className="rounded-md border divide-y">
+                          {dateStudies.map((study) => (
+                            <div key={study.id} className="flex items-center justify-between p-4 hover:bg-muted/50">
+                              <div className="flex flex-1 items-center">
+                                <div className="mr-4">
+                                  <Avatar className="h-10 w-10">
+                                    <AvatarFallback className="bg-primary/10">
+                                      {study.modality?.substring(0, 2) || "IM"}
+                                    </AvatarFallback>
+                                  </Avatar>
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center">
+                                    <p className="text-sm font-medium mr-2 truncate">{study.study_description}</p>
+                                    <Badge variant="outline" className="shrink-0">
+                                      {study.modality}
+                                    </Badge>
+                                  </div>
+                                  <div className="flex items-center text-sm text-muted-foreground">
+                                    <User className="h-3 w-3 mr-1" />
+                                    <span className="truncate">{study.patient_name || "Unknown Patient"}</span>
+                                    <span className="mx-1">•</span>
+                                    <Calendar className="h-3 w-3 mr-1" />
+                                    <span>{format(new Date(study.study_date), "h:mm a")}</span>
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="ml-4 flex items-center space-x-2">
+                                <Badge
+                                  variant={
+                                    study.report_status === "completed"
+                                      ? "secondary"
+                                      : study.report_status === "in-progress"
+                                        ? "outline"
+                                        : "default"
+                                  }
+                                >
+                                  {study.report_status || "Pending"}
+                                </Badge>
+                                <Button asChild variant="outline" size="sm">
+                                  <Link href={`/radiology/${study.id}`}>View</Link>
+                                </Button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </Card>
+                    )}
+                  </div>
+                ))}
             </div>
           )}
         </TabsContent>
@@ -379,15 +487,122 @@ export default function RadiologyDashboard({ studies, currentUser }: RadiologyDa
             </Card>
           ) : (
             <div className="space-y-6">
-              {/* Same view as recent but filtered */}
-              {/* Implementation similar to "recent" tab */}
+              {Object.entries(studiesByDate)
+                .sort(([dateA], [dateB]) => new Date(dateB).getTime() - new Date(dateA).getTime())
+                .map(([date, dateStudies]) => (
+                  <div key={date}>
+                    <h2 className="text-lg font-medium mb-4">{format(new Date(date), "MMMM d, yyyy")}</h2>
+                    {viewMode === "grid" ? (
+                      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                        {dateStudies
+                          .filter((study) => study.report_status === "pending")
+                          .map((study) => (
+                            <Card key={study.id} className="overflow-hidden">
+                              <CardHeader className="pb-2">
+                                <div className="flex justify-between items-center">
+                                  <Badge variant="outline">{study.modality}</Badge>
+                                  <Badge
+                                    variant={
+                                      study.report_status === "completed"
+                                        ? "secondary"
+                                        : study.report_status === "in-progress"
+                                          ? "outline"
+                                          : "default"
+                                    }
+                                  >
+                                    {study.report_status || "Pending"}
+                                  </Badge>
+                                </div>
+                                <CardTitle className="text-base mt-2 line-clamp-1">
+                                  {study.study_description}
+                                </CardTitle>
+                                <CardDescription className="line-clamp-1">
+                                  {study.patient_name || "Unknown Patient"}
+                                </CardDescription>
+                              </CardHeader>
+                              <CardContent className="pb-2">
+                                <div className="flex justify-between items-center text-sm mb-2">
+                                  <div className="flex items-center">
+                                    <Calendar className="h-4 w-4 mr-1 text-muted-foreground" />
+                                    <span>{format(new Date(study.study_date), "h:mm a")}</span>
+                                  </div>
+                                  <div className="flex items-center">
+                                    <ImageIcon className="h-4 w-4 mr-1 text-muted-foreground" />
+                                    <span>{study.image_count || 0} images</span>
+                                  </div>
+                                </div>
+                                <div className="flex items-center text-sm">
+                                  <User className="h-4 w-4 mr-1 text-muted-foreground" />
+                                  <span className="line-clamp-1">Patient ID: {study.patient_id || "Unknown"}</span>
+                                </div>
+                              </CardContent>
+                              <CardFooter>
+                                <Button asChild className="w-full">
+                                  <Link href={`/radiology/${study.id}`}>View Study</Link>
+                                </Button>
+                              </CardFooter>
+                            </Card>
+                          ))}
+                      </div>
+                    ) : (
+                      <Card>
+                        <div className="rounded-md border divide-y">
+                          {dateStudies.map((study) => (
+                            <div key={study.id} className="flex items-center justify-between p-4 hover:bg-muted/50">
+                              <div className="flex flex-1 items-center">
+                                <div className="mr-4">
+                                  <Avatar className="h-10 w-10">
+                                    <AvatarFallback className="bg-primary/10">
+                                      {study.modality?.substring(0, 2) || "IM"}
+                                    </AvatarFallback>
+                                  </Avatar>
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center">
+                                    <p className="text-sm font-medium mr-2 truncate">{study.study_description}</p>
+                                    <Badge variant="outline" className="shrink-0">
+                                      {study.modality}
+                                    </Badge>
+                                  </div>
+                                  <div className="flex items-center text-sm text-muted-foreground">
+                                    <User className="h-3 w-3 mr-1" />
+                                    <span className="truncate">{study.patient_name || "Unknown Patient"}</span>
+                                    <span className="mx-1">•</span>
+                                    <Calendar className="h-3 w-3 mr-1" />
+                                    <span>{format(new Date(study.study_date), "h:mm a")}</span>
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="ml-4 flex items-center space-x-2">
+                                <Badge
+                                  variant={
+                                    study.report_status === "completed"
+                                      ? "secondary"
+                                      : study.report_status === "in-progress"
+                                        ? "outline"
+                                        : "default"
+                                  }
+                                >
+                                  {study.report_status || "Pending"}
+                                </Badge>
+                                <Button asChild variant="outline" size="sm">
+                                  <Link href={`/radiology/${study.id}`}>View</Link>
+                                </Button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </Card>
+                    )}
+                  </div>
+                ))}
             </div>
           )}
         </TabsContent>
 
         <TabsContent value="completed" className="mt-6">
           {/* Filter studies with completed reports */}
-          {filteredStudies.filter((study) => study.report_status === "completed").length === 0 ? (
+          {filteredStudies.filter((study) => study.report_status === "final").length === 0 ? (
             <Card>
               <CardContent className="flex h-60 flex-col items-center justify-center p-6 text-center">
                 <div className="rounded-full bg-primary/10 p-3 mb-4">
@@ -401,8 +616,104 @@ export default function RadiologyDashboard({ studies, currentUser }: RadiologyDa
             </Card>
           ) : (
             <div className="space-y-6">
-              {/* Same view as recent but filtered */}
-              {/* Implementation similar to "recent" tab */}
+              {Object.entries(studiesByDate)
+              .map(([date, dateStudies]) => {
+                const finalStudies = dateStudies.filter((study) => study.report_status === "final");
+                return finalStudies.length > 0 ? [date, finalStudies] : null;
+              })
+              .filter((entry): entry is [string, any[]] => entry !== null)
+              .sort(([dateA], [dateB]) => new Date(dateB).getTime() - new Date(dateA).getTime())
+                .map(([date, dateStudies]) => (
+                  <div key={date}>
+                    <h2 className="text-lg font-medium mb-4">{format(new Date(date), "MMMM d, yyyy")}</h2>
+                    {viewMode === "grid" ? (
+                      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                        {dateStudies.map((study) => (
+                          <Card key={study.id} className="overflow-hidden">
+                            <CardHeader className="pb-2">
+                              <div className="flex justify-between items-center">
+                                <Badge variant="outline">{study.modality}</Badge>
+                                <Badge
+                                className="bg-green-600 text-white"
+                                >
+                                  {study.report_status || "Pending"}
+                                </Badge>
+                              </div>
+                              <CardTitle className="text-base mt-2 line-clamp-1">{study.study_description}</CardTitle>
+                              <CardDescription className="line-clamp-1">
+                                {study.patient_name || "Unknown Patient"}
+                              </CardDescription>
+                            </CardHeader>
+                            <CardContent className="pb-2">
+                              <div className="flex justify-between items-center text-sm mb-2">
+                                <div className="flex items-center">
+                                  <Calendar className="h-4 w-4 mr-1 text-muted-foreground" />
+                                  <span>{format(new Date(study.study_date), "h:mm a")}</span>
+                                </div>
+                                <div className="flex items-center">
+                                  <ImageIcon className="h-4 w-4 mr-1 text-muted-foreground" />
+                                  <span>{study.image_count || 0} images</span>
+                                </div>
+                              </div>
+                              <div className="flex items-center text-sm">
+                                <User className="h-4 w-4 mr-1 text-muted-foreground" />
+                                <span className="line-clamp-1">Patient ID: {study.patient_id || "Unknown"}</span>
+                              </div>
+                            </CardContent>
+                            <CardFooter>
+                              <Button asChild className="w-full">
+                                <Link href={`/radiology/${study.id}`}>View Study</Link>
+                              </Button>
+                            </CardFooter>
+                          </Card>
+                        ))}
+                      </div>
+                    ) : (
+                      <Card>
+                        <div className="rounded-md border divide-y">
+                          {dateStudies.map((study) => (
+                            <div key={study.id} className="flex items-center justify-between p-4 hover:bg-muted/50">
+                              <div className="flex flex-1 items-center">
+                                <div className="mr-4">
+                                  <Avatar className="h-10 w-10">
+                                    <AvatarFallback className="bg-primary/10">
+                                      {study.modality?.substring(0, 2) || "IM"}
+                                    </AvatarFallback>
+                                  </Avatar>
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center">
+                                    <p className="text-sm font-medium mr-2 truncate">{study.study_description}</p>
+                                    <Badge variant="outline" className="shrink-0">
+                                      {study.modality}
+                                    </Badge>
+                                  </div>
+                                  <div className="flex items-center text-sm text-muted-foreground">
+                                    <User className="h-3 w-3 mr-1" />
+                                    <span className="truncate">{study.patient_name || "Unknown Patient"}</span>
+                                    <span className="mx-1">•</span>
+                                    <Calendar className="h-3 w-3 mr-1" />
+                                    <span>{format(new Date(study.study_date), "h:mm a")}</span>
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="ml-4 flex items-center space-x-2">
+                                <Badge
+                                  variant="outline"
+                                >
+                                  {study.report_status || "Pending"}
+                                </Badge>
+                                <Button asChild variant="outline" size="sm">
+                                  <Link href={`/radiology/${study.id}`}>View</Link>
+                                </Button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </Card>
+                    )}
+                  </div>
+                ))}
             </div>
           )}
         </TabsContent>

@@ -4,7 +4,7 @@ import { notFound, redirect } from "next/navigation"
 import DashboardLayout from "@/components/layout/dashboard-layout"
 import PatientVisitView from "@/components/patients/patient-visit-view"
 import { createServerComponentClient } from "@supabase/auth-helpers-nextjs"
-import { getPatientById, getPatientVisit } from "@/services/patient-service"
+import { getGeneralPatientById, getPatientVisit } from "@/services/patient-service"
 
 export const metadata: Metadata = {
   title: "Visit Details | Hospital Diagnosis Management System",
@@ -48,7 +48,7 @@ export default async function PatientVisitPage({
   }
 
   // Get patient data
-  const { patient, error: patientError } = await getPatientById(params.id, userData.hospital_id)
+  const { patient, error: patientError } = await getGeneralPatientById(params.id, userData.hospital_id)
 
   if (patientError || !patient) {
     notFound()

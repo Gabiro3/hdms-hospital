@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { toast } from "@/components/ui/use-toast"
+import { toast } from "@/hooks/use-toast"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Textarea } from "@/components/ui/textarea"
@@ -308,10 +308,6 @@ export default function ReportView({ report, shares, comments, currentUser, coll
                           className="h-20 resize-none"
                         />
                         <div className="flex items-center justify-between">
-                          <Button variant="outline" size="sm" type="button" className="gap-1">
-                            <PaperclipIcon className="h-4 w-4" />
-                            <span>Attach</span>
-                          </Button>
                           <Button
                             size="sm"
                             type="button"

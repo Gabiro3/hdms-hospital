@@ -1,89 +1,110 @@
-import { createServerSupabaseClient } from "@/lib/supabase/server"
-import { type NextRequest, NextResponse } from "next/server"
-import { v4 as uuidv4 } from "uuid"
-import { processChestXray, ChestXrayResult } from "@/lib/utils/gradio-client"
-
+import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { type NextRequest, NextResponse } from "next/server";
+import { v4 as uuidv4 } from "uuid";
+import { processChestXray, ChestXrayResult } from "@/lib/utils/gradio-client";
 
 export async function POST(request: NextRequest) {
   try {
-    const supabase = createServerSupabaseClient()
+    const supabase = createServerSupabaseClient();
 
-    const formData = await request.formData()
+    const formData = await request.formData();
 
     // Extract form values
-    const metadata = formData.get("metadata") as string
-    const patientMetadata = metadata ? JSON.parse(metadata) : {}
+    const metadata = formData.get("metadata") as string;
+    const patientMetadata = metadata ? JSON.parse(metadata) : {};
 
-    const { patientName, patientId, ageRange, scanType, notes = "" } = patientMetadata
-    const userId = formData.get("userId") as string
+    const {
+      patientName,
+      patientId,
+      ageRange,
+      scanType,
+      notes = "",
+    } = patientMetadata;
+    const userId = formData.get("userId") as string;
 
-    const hospitalId = (formData.get("hospitalId") as string) || userId
+    const hospitalId = (formData.get("hospitalId") as string) || userId;
 
     if (!patientName || !patientId || !ageRange || !scanType) {
-      return NextResponse.json({ error: "Missing required patient information" }, { status: 400 })
+      return NextResponse.json(
+        { error: "Missing required patient information" },
+        { status: 400 }
+      );
     }
 
     // Get image file
-    const imageFile = formData.get("image") as File | null
+    const imageFile = formData.get("image") as File | null;
 
     if (!imageFile) {
-      return NextResponse.json({ error: "No image provided" }, { status: 400 })
+      return NextResponse.json({ error: "No image provided" }, { status: 400 });
     }
 
     // Generate a unique ID for this diagnosis
-    const diagnosisId = uuidv4()
+    const diagnosisId = uuidv4();
 
     // Step 1: Convert File to Blob for processing
-    const imageBlob = new Blob([await imageFile.arrayBuffer()], { type: imageFile.type })
+    const imageBlob = new Blob([await imageFile.arrayBuffer()], {
+      type: imageFile.type,
+    });
 
     // Step 2: Process the image with the chest X-ray model
-    console.log("Processing chest X-ray image...")
-    const aiResult: ChestXrayResult = await processChestXray(imageBlob)
-    console.log("AI processing result:", aiResult)
+    const aiResult: ChestXrayResult = await processChestXray(imageBlob);
 
     if (!aiResult.success) {
-      return NextResponse.json({ error: aiResult.error || "Failed to process chest X-ray" }, { status: 500 })
+      return NextResponse.json(
+        { error: aiResult.error || "Failed to process chest X-ray" },
+        { status: 500 }
+      );
     }
 
-    const imageUrls = []
-    let processedImageUrl = null
+    const imageUrls = [];
+    let processedImageUrl = null;
 
     // Step 3: Process the disease findings from the AI result
-    const findings = aiResult.data[1] || ''
-    const diseasesWithConfidence = findings.split('\n').map((diseaseLine: { split: (arg0: string) => { (): any; new(): any; map: { (arg0: (item: any) => any): [any, any]; new(): any } } }) => {
-      const [disease, confidence] = diseaseLine.split(':').map(item => item.trim())
-      return {
-        disease: disease,
-        confidence: parseFloat(confidence.replace('%', '')) || 0
-      }
-    })
-
-    console.log("Diseases with confidence scores:", diseasesWithConfidence)
+    const findings = aiResult.data[1] || "";
+    const diseasesWithConfidence = findings
+      .split("\n")
+      .map(
+        (diseaseLine: {
+          split: (arg0: string) => {
+            (): any;
+            new (): any;
+            map: { (arg0: (item: any) => any): [any, any]; new (): any };
+          };
+        }) => {
+          const [disease, confidence] = diseaseLine
+            .split(":")
+            .map((item) => item.trim());
+          return {
+            disease: disease,
+            confidence: parseFloat(confidence.replace("%", "")) || 0,
+          };
+        }
+      );
 
     // Step 4: Download and store the result image
-    let originalImageUrl = aiResult.data[0]?.url
-    let originalImageBlob: Blob | null = null
+    let originalImageUrl = aiResult.data[0]?.url;
+    let originalImageBlob: Blob | null = null;
 
     if (originalImageUrl && originalImageUrl.startsWith("http")) {
-      const response = await fetch(originalImageUrl)
-      originalImageBlob = await response.blob()
+      const response = await fetch(originalImageUrl);
+      originalImageBlob = await response.blob();
 
-      const originalFileName = `${diagnosisId}/original-${Date.now()}.webp`
+      const originalFileName = `${diagnosisId}/original-${Date.now()}.webp`;
 
       const { error: originalUploadError } = await supabase.storage
         .from("diagnosis-images")
         .upload(originalFileName, originalImageBlob, {
           contentType: "image/webp",
-        })
+        });
 
       if (originalUploadError) {
-        console.error("Error uploading original image:", originalUploadError)
+        console.error("Error uploading original image:", originalUploadError);
       } else {
         const { data: originalUrlData } = await supabase.storage
           .from("diagnosis-images")
-          .getPublicUrl(originalFileName)
+          .getPublicUrl(originalFileName);
 
-        imageUrls.push(originalUrlData.publicUrl)
+        imageUrls.push(originalUrlData.publicUrl);
       }
     }
 
@@ -96,10 +117,9 @@ export async function POST(request: NextRequest) {
       processed_image_url: processedImageUrl,
       original_image_url: imageUrls.length > 0 ? imageUrls[0] : null, // The first image URL is the original image URL
       analysis_timestamp: new Date().toISOString(),
-    }
+    };
 
     // Step 6: Store in Supabase database
-    console.log("Creating diagnosis record in database...")
     const { data: diagnosis, error: dbError } = await supabase
       .from("diagnoses")
       .insert({
@@ -118,11 +138,14 @@ export async function POST(request: NextRequest) {
         },
       })
       .select()
-      .single()
+      .single();
 
     if (dbError) {
-      console.error("Error creating diagnosis record:", dbError)
-      return NextResponse.json({ error: "Failed to create diagnosis record" }, { status: 500 })
+      console.error("Error creating diagnosis record:", dbError);
+      return NextResponse.json(
+        { error: "Failed to create diagnosis record" },
+        { status: 500 }
+      );
     }
 
     // Return success response with diagnosis ID and details
@@ -131,15 +154,15 @@ export async function POST(request: NextRequest) {
       diagnosisId,
       imageUrls,
       aiAnalysisResults,
-    })
+    });
   } catch (error) {
-    console.error("Error in chest X-ray processing endpoint:", error)
+    console.error("Error in chest X-ray processing endpoint:", error);
     return NextResponse.json(
       {
         error: error instanceof Error ? error.message : "Unknown server error",
         details: error instanceof Error ? error.stack : undefined,
       },
-      { status: 500 },
-    )
+      { status: 500 }
+    );
   }
 }

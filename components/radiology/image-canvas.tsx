@@ -2,6 +2,7 @@
 
 import { useRef, useEffect, useState, forwardRef, useImperativeHandle } from "react"
 import { toast } from "@/components/ui/use-toast"
+import { v4 as uuidv4 } from "uuid"
 
 interface ImageCanvasProps {
   imageUrl: string
@@ -21,6 +22,7 @@ interface ImageCanvasProps {
   activeViewboxIndex: number
   onViewboxSelect: (index: number) => void
   viewboxCount: number
+  onPanOffsetChange?: (offset: { x: number; y: number }) => void
 }
 
 const ImageCanvas = forwardRef<any, ImageCanvasProps>(
@@ -43,6 +45,7 @@ const ImageCanvas = forwardRef<any, ImageCanvasProps>(
       activeViewboxIndex,
       onViewboxSelect,
       viewboxCount,
+      onPanOffsetChange,
     },
     ref,
   ) => {
@@ -59,12 +62,6 @@ const ImageCanvas = forwardRef<any, ImageCanvasProps>(
     const [viewboxes, setViewboxes] = useState<
       Array<{
         panOffset: { x: number; y: number }
-        zoom: number
-        brightness: number
-        contrast: number
-        invert: boolean
-        rotation: number
-        flipped: { horizontal: boolean; vertical: boolean }
       }>
     >([])
 
@@ -74,32 +71,9 @@ const ImageCanvas = forwardRef<any, ImageCanvasProps>(
         .fill(null)
         .map(() => ({
           panOffset: { x: 0, y: 0 },
-          zoom,
-          brightness,
-          contrast,
-          invert,
-          rotation,
-          flipped: { ...flipped },
         }))
       setViewboxes(initialViewboxes)
     }, [viewboxCount])
-
-    // Update active viewbox settings when global settings change
-    useEffect(() => {
-      if (viewboxes.length > 0 && activeViewboxIndex < viewboxes.length) {
-        const updatedViewboxes = [...viewboxes]
-        updatedViewboxes[activeViewboxIndex] = {
-          ...updatedViewboxes[activeViewboxIndex],
-          zoom,
-          brightness,
-          contrast,
-          invert,
-          rotation,
-          flipped: { ...flipped },
-        }
-        setViewboxes(updatedViewboxes)
-      }
-    }, [zoom, brightness, contrast, invert, rotation, flipped, activeViewboxIndex])
 
     // Expose methods to parent component
     useImperativeHandle(ref, () => ({
@@ -156,7 +130,20 @@ const ImageCanvas = forwardRef<any, ImageCanvasProps>(
       if (imageRef.current) {
         drawImage()
       }
-    }, [viewboxes, layout, annotations, selectedAnnotationIndex, activeViewboxIndex, viewboxCount])
+    }, [
+      zoom,
+      brightness,
+      contrast,
+      invert,
+      rotation,
+      flipped,
+      layout,
+      annotations,
+      selectedAnnotationIndex,
+      activeViewboxIndex,
+      viewboxCount,
+      viewboxes,
+    ])
 
     // Reset canvas when shouldReset is true
     useEffect(() => {
@@ -166,18 +153,16 @@ const ImageCanvas = forwardRef<any, ImageCanvasProps>(
         // Reset all viewboxes
         const resetViewboxes = viewboxes.map(() => ({
           panOffset: { x: 0, y: 0 },
-          zoom,
-          brightness,
-          contrast,
-          invert,
-          rotation,
-          flipped: { ...flipped },
         }))
         setViewboxes(resetViewboxes)
 
+        if (onPanOffsetChange) {
+          onPanOffsetChange({ x: 0, y: 0 })
+        }
+
         drawImage()
       }
-    }, [shouldReset])
+    }, [shouldReset, onPanOffsetChange])
 
     // Initialize canvas and event listeners
     useEffect(() => {
@@ -235,6 +220,7 @@ const ImageCanvas = forwardRef<any, ImageCanvasProps>(
 
           // Add a new annotation if drawing
           const newAnnotation = {
+            id: uuidv4(),
             type: "freehand",
             color: "#ff0000",
             points: [{ x, y }],
@@ -246,6 +232,7 @@ const ImageCanvas = forwardRef<any, ImageCanvasProps>(
 
           // Add a new circle annotation
           const newAnnotation = {
+            id: uuidv4(),
             type: "circle",
             color: "#00ff00",
             startX: x,
@@ -259,6 +246,7 @@ const ImageCanvas = forwardRef<any, ImageCanvasProps>(
 
           // Add a new rectangle annotation
           const newAnnotation = {
+            id: uuidv4(),
             type: "rectangle",
             color: "#0000ff",
             startX: x,
@@ -273,6 +261,7 @@ const ImageCanvas = forwardRef<any, ImageCanvasProps>(
 
           // Add a new measurement annotation
           const newAnnotation = {
+            id: uuidv4(),
             type: "measure",
             color: "#ffff00",
             startX: x,
@@ -287,6 +276,7 @@ const ImageCanvas = forwardRef<any, ImageCanvasProps>(
 
           // Add a new arrow annotation
           const newAnnotation = {
+            id: uuidv4(),
             type: "arrow",
             color: "#ff6600",
             startX: x,
@@ -301,6 +291,7 @@ const ImageCanvas = forwardRef<any, ImageCanvasProps>(
 
           // Add a new highlight annotation
           const newAnnotation = {
+            id: uuidv4(),
             type: "highlight",
             color: "rgba(255, 255, 0, 0.3)",
             startX: x,
@@ -373,6 +364,17 @@ const ImageCanvas = forwardRef<any, ImageCanvasProps>(
           updatedViewboxes[activeViewboxIndex].panOffset.x += dx
           updatedViewboxes[activeViewboxIndex].panOffset.y += dy
           setViewboxes(updatedViewboxes)
+
+          // Update the main pan offset for the current image
+          const newPanOffset = {
+            x: panOffset.x + dx,
+            y: panOffset.y + dy,
+          }
+          setPanOffset(newPanOffset)
+
+          if (onPanOffsetChange) {
+            onPanOffsetChange(newPanOffset)
+          }
 
           setLastX(x)
           setLastY(y)
@@ -453,19 +455,8 @@ const ImageCanvas = forwardRef<any, ImageCanvasProps>(
       const handleWheel = (e: WheelEvent) => {
         e.preventDefault()
 
-        // Zoom functionality for the active viewbox
-        const updatedViewboxes = [...viewboxes]
-        let newZoom = updatedViewboxes[activeViewboxIndex].zoom
-
-        if (e.deltaY < 0) {
-          newZoom = Math.min(newZoom + 10, 500)
-        } else {
-          newZoom = Math.max(newZoom - 10, 10)
-        }
-
-        updatedViewboxes[activeViewboxIndex].zoom = newZoom
-        setViewboxes(updatedViewboxes)
-        drawImage()
+        // In a real implementation, we would handle zoom here
+        // For now, we'll just prevent the default behavior
       }
 
       // Add event listeners
@@ -494,6 +485,11 @@ const ImageCanvas = forwardRef<any, ImageCanvasProps>(
       selectedAnnotationIndex,
       activeViewboxIndex,
       viewboxes,
+      panOffset,
+      onAnnotationsChange,
+      onAnnotationSelect,
+      onViewboxSelect,
+      onPanOffsetChange,
     ])
 
     // Find which viewbox contains the given point
@@ -713,17 +709,17 @@ const ImageCanvas = forwardRef<any, ImageCanvasProps>(
         ctx.clip()
 
         // Apply viewbox-specific transformations
-        if (viewbox.invert) {
+        if (invert) {
           ctx.filter = "invert(100%)"
         }
 
         // Apply brightness and contrast
-        const brightnessValue = (viewbox.brightness - 100) / 100
-        const contrastValue = viewbox.contrast / 100
+        const brightnessValue = (brightness - 100) / 100
+        const contrastValue = contrast / 100
         ctx.filter = `${ctx.filter} brightness(${1 + brightnessValue}) contrast(${contrastValue})`
 
         // Calculate scaling based on zoom level
-        const scale = viewbox.zoom / 100
+        const scale = zoom / 100
 
         // Calculate position to center the image
         const scaledWidth = img.width * scale
@@ -735,14 +731,17 @@ const ImageCanvas = forwardRef<any, ImageCanvasProps>(
 
         // Apply transformations
         ctx.translate(centerX, centerY)
-        ctx.rotate((viewbox.rotation * Math.PI) / 180)
-        ctx.scale(viewbox.flipped.horizontal ? -1 : 1, viewbox.flipped.vertical ? -1 : 1)
+        ctx.rotate((rotation * Math.PI) / 180)
+        ctx.scale(flipped.horizontal ? -1 : 1, flipped.vertical ? -1 : 1)
+
+        // Use the viewbox's pan offset for positioning
+        const viewboxPanOffset = i === activeViewboxIndex ? panOffset : viewbox.panOffset
 
         // Draw the image
         ctx.drawImage(
           img,
-          -scaledWidth / 2 + viewbox.panOffset.x,
-          -scaledHeight / 2 + viewbox.panOffset.y,
+          -scaledWidth / 2 + viewboxPanOffset.x,
+          -scaledHeight / 2 + viewboxPanOffset.y,
           scaledWidth,
           scaledHeight,
         )

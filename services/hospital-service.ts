@@ -54,6 +54,22 @@ export async function createHospital(hospital: HospitalInsert) {
   }
 }
 
+export async function getHospitalDepartments(hospitalId: string) {
+  try {
+    const supabase = createServerSupabaseClient()
+    const { data, error } = await supabase
+      .from("hospital_departments")
+      .select("*")
+      .eq("hospital_id", hospitalId)
+      .order("name")
+
+    if (error) throw error
+    return { departments: data, error: null }
+  } catch (error) {
+    console.error(`Error fetching departments for hospital ${hospitalId}:`, error)
+    return { departments: null, error: "Failed to fetch hospital departments" }
+  }
+}
 export async function updateHospital(id: string, hospital: HospitalUpdate) {
   try {
     const supabase = createServerSupabaseClient()
@@ -87,5 +103,26 @@ export async function deleteHospital(id: string) {
   } catch (error) {
     console.error(`Error deleting hospital with ID ${id}:`, error)
     return { error: "Failed to delete hospital" }
+  }
+}
+
+export async function getHospitalWithDetails(id: string) {
+  try {
+    const supabase = createServerSupabaseClient()
+    const { data, error } = await supabase
+      .from("hospitals")
+      .select(`
+        *,
+        hospital_departments(id, name, description),
+        hospital_accreditations(id, name, issuer, issue_date, expiry_date, certificate_url)
+      `)
+      .eq("id", id)
+      .single()
+
+    if (error) throw error
+    return { hospital: data, error: null }
+  } catch (error) {
+    console.error(`Error fetching hospital details for ID ${id}:`, error)
+    return { hospital: null, error: "Failed to fetch hospital details" }
   }
 }

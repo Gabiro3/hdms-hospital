@@ -68,8 +68,6 @@ export async function POST(request: NextRequest) {
       for (let i = 0; i < aiImageResults.length; i++) {
         const res = aiImageResults[i]
         const fileUrl = res?.image?.url
-        console.log(res)
-        console.log(fileUrl)
 
         if (!fileUrl) continue
 
@@ -103,7 +101,6 @@ export async function POST(request: NextRequest) {
           label: isAbnormal ? "Pneumonia Positive" : res.label,
           confidence: res.confidence,
         })
-        console.log(perImageAnalysis)
       }
 
       // Step 3: Build analysis summary

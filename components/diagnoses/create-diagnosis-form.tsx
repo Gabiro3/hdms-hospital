@@ -113,7 +113,6 @@ export default function CreateDiagnosisForm({ user }: { user: any }) {
       )
 
       // Use the dynamically selected API endpoint based on scan type
-      console.log(`Submitting to endpoint: ${apiEndpoint}`)
       setProcessingStatus("Processing with AI model...")
 
       const response = await fetch(apiEndpoint, {

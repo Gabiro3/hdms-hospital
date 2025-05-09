@@ -16,6 +16,7 @@ interface PatientsListProps {
 }
 
 interface Patient {
+  patient_info: any
   id: string
   name: string
   created_at: string
@@ -37,63 +38,37 @@ export default function PatientsList({ hospitalId }: PatientsListProps) {
     const fetchPatients = async () => {
       setLoading(true)
       try {
-        // First, get all unique patient IDs from diagnoses for this hospital
-        const { data: diagnosesData, error: diagnosesError } = await supabase
-          .from("diagnoses")
-          .select("patient_id, patient_metadata, created_at")
+        const { data: patientsData, error } = await supabase
+          .from("patients")
+          .select("*")
           .eq("hospital_id", hospitalId)
-          .order("created_at", { ascending: false })
-
-        if (diagnosesError) throw diagnosesError
-
-        // Process the data to get unique patients with their latest diagnosis
-        const patientMap = new Map<string, any>()
-
-        diagnosesData?.forEach((diagnosis) => {
-          const patientId = diagnosis.patient_id
-          const metadata = diagnosis.patient_metadata || {}
-          const name = metadata.name || patientId
-
-          if (
-            !patientMap.has(patientId) ||
-            new Date(diagnosis.created_at) > new Date(patientMap.get(patientId).last_diagnosis_date)
-          ) {
-            patientMap.set(patientId, {
-              id: patientId,
-              name,
-              created_at: diagnosis.created_at,
-              diagnoses_count: patientMap.has(patientId) ? patientMap.get(patientId).diagnoses_count : 0,
-              last_diagnosis_date: diagnosis.created_at,
-            })
-          }
-
-          // Increment diagnoses count
-          if (patientMap.has(patientId)) {
-            const patient = patientMap.get(patientId)
-            patient.diagnoses_count += 1
-            patientMap.set(patientId, patient)
-          }
-        })
-
-        // Convert map to array and sort by last diagnosis date
-        const patientsArray = Array.from(patientMap.values()).sort(
-          (a, b) => new Date(b.last_diagnosis_date).getTime() - new Date(a.last_diagnosis_date).getTime(),
-        )
-
-        setPatients(patientsArray)
-        setTotal(patientsArray.length)
-        setTotalPages(Math.ceil(patientsArray.length / limit))
+  
+        if (error) throw error
+  
+        const formattedPatients = patientsData.map((p: any) => ({
+          id: p.id,
+          patient_info: p.patient_info,
+          name: p.name,
+          created_at: p.created_at,
+          diagnoses_count: 0, // You'll need another query if you want this count
+          last_diagnosis_date: null // Or join with diagnoses if needed
+        }))
+  
+        setPatients(formattedPatients)
+        setTotal(formattedPatients.length)
+        setTotalPages(Math.ceil(formattedPatients.length / limit))
       } catch (error) {
         console.error("Error fetching patients:", error)
       } finally {
         setLoading(false)
       }
     }
-
+  
     if (hospitalId) {
       fetchPatients()
     }
   }, [hospitalId, supabase, limit])
+  
 
   // Filter patients based on search
   const filteredPatients = patients.filter(
@@ -148,25 +123,23 @@ export default function PatientsList({ hospitalId }: PatientsListProps) {
                 <TableRow>
                   <TableHead>Patient ID</TableHead>
                   <TableHead>Name</TableHead>
-                  <TableHead>Diagnoses</TableHead>
-                  <TableHead>Last Diagnosis</TableHead>
+                  <TableHead>Phone Number</TableHead>
+                  <TableHead>Created By</TableHead>
                   <TableHead className="w-[80px]">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {paginatedPatients.map((patient) => (
                   <TableRow key={patient.id}>
-                    <TableCell className="font-medium">{patient.id}</TableCell>
+                    <TableCell className="font-medium">{`${patient.id.slice(0, 4)}...${patient.id.slice(-4)}`}</TableCell>
                     <TableCell>{patient.name}</TableCell>
                     <TableCell>
                       <Badge variant="outline" className="bg-blue-50 text-blue-700">
-                        {patient.diagnoses_count}
+                        {patient.patient_info.contact['phone']}
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      {patient.last_diagnosis_date
-                        ? format(new Date(patient.last_diagnosis_date), "MMM d, yyyy")
-                        : "N/A"}
+                    {patient.patient_info.created_by_name || 'Unknown'}
                     </TableCell>
                     <TableCell>
                       <DropdownMenu>

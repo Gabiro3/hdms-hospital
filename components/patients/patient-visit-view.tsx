@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { ArrowLeft, Calendar, User, Activity, ClipboardList, FileText, Pill } from "lucide-react"
-import { toast } from "@/components/ui/use-toast"
+import { toast } from "@/hooks/use-toast"
 import { generateSoapNote } from "@/services/patient-service"
 
 interface PatientVisitViewProps {

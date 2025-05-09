@@ -1,9 +1,9 @@
 "use client"
 
-import { useState, useRef, useCallback, useEffect } from "react"
+import { useState, useRef, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { useHotkeys } from "react-hotkeys-hook"
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
+import { TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
@@ -48,6 +48,8 @@ import {
   RotateCw,
   FlipHorizontal,
   FlipVertical,
+  Moon,
+  Sun,
 } from "lucide-react"
 import { format } from "date-fns"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
@@ -55,58 +57,62 @@ import { Badge } from "@/components/ui/badge"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { toast } from "@/components/ui/use-toast"
+import { useTheme } from "next-themes"
+import { v4 as uuidv4 } from "uuid"
 import ImageCanvas from "./image-canvas"
-import RadiologyReport from "./radiology-report"
 import SharedStudiesDialog from "./shared-studies-dialog"
 import ImageUploadDialog from "./image-upload-dialog"
 import TextAnnotationDialog from "./text-annotation-dialog"
-import { uploadRadiologyImage } from "@/services/radiology-service"
+import DeleteImageDialog from "./delete-image-dialog"
+import { useRadiologyState } from "./radiology-state-provider"
+import { Tabs } from "@/components/ui/tabs"
 
 interface RadiologyViewerProps {
-  study: any
   currentUser: any
 }
 
-export default function RadiologyViewer({ study, currentUser }: RadiologyViewerProps) {
-  const [activeTab, setActiveTab] = useState("images")
-  const [selectedLayout, setSelectedLayout] = useState("1x1")
-  const [sidebarOpen, setSidebarOpen] = useState(true)
-  const [activeToolId, setActiveToolId] = useState<string>("pan")
-  const [zoom, setZoom] = useState(100)
-  const [brightness, setBrightness] = useState(100)
-  const [contrast, setContrast] = useState(100)
-  const [invert, setInvert] = useState(false)
+export default function RadiologyViewer({ currentUser }: RadiologyViewerProps) {
+  const {
+    state,
+    setCurrentImageIndex,
+    setActiveViewboxIndex,
+    setLayout,
+    setViewMode,
+    updateViewboxSettings,
+    updateAnnotations,
+    uploadImages,
+    deleteImage,
+  } = useRadiologyState()
+  const { theme, setTheme } = useTheme()
+
   const [showShareDialog, setShowShareDialog] = useState(false)
   const [showUploadDialog, setShowUploadDialog] = useState(false)
   const [showTextDialog, setShowTextDialog] = useState(false)
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
+  const [sidebarOpen, setSidebarOpen] = useState(true)
+  const [activeToolId, setActiveToolId] = useState<string>("pan")
   const [shouldReset, setShouldReset] = useState(false)
-  const [currentImageIndex, setCurrentImageIndex] = useState(0)
-  const [activeViewboxIndex, setActiveViewboxIndex] = useState(0)
-  const [rotation, setRotation] = useState(0)
-  const [flipped, setFlipped] = useState({ horizontal: false, vertical: false })
   const [textAnnotationPosition, setTextAnnotationPosition] = useState({ x: 0, y: 0 })
-  const [images, setImages] = useState<string[]>([
-    "/placeholder.svg?height=800&width=800",
-    "/placeholder.svg?height=800&width=800",
-    "/placeholder.svg?height=800&width=800",
-    "/placeholder.svg?height=800&width=800",
-  ])
-  const [isUploading, setIsUploading] = useState(false)
-  const [annotations, setAnnotations] = useState<Record<string, any[]>>({})
   const [selectedAnnotationIndex, setSelectedAnnotationIndex] = useState<number | null>(null)
-  const router = useRouter()
 
+  const router = useRouter()
   const canvasContainerRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<any>(null)
 
-  // Initialize annotations for each image
-  useEffect(() => {
-    const initialAnnotations: Record<string, any[]> = {}
-    images.forEach((img, index) => {
-      initialAnnotations[index.toString()] = []
-    })
-    setAnnotations(initialAnnotations)
-  }, [])
+  // Get current image and its settings
+  const currentImage = state.images[state.currentImageIndex] || {
+    url: "/placeholder.svg?height=800&width=800",
+    annotations: [],
+    viewboxSettings: {
+      panOffset: { x: 0, y: 0 },
+      zoom: 100,
+      brightness: 100,
+      contrast: 100,
+      invert: false,
+      rotation: 0,
+      flipped: { horizontal: false, vertical: false },
+    },
+  }
 
   // Tools configuration
   const tools = [
@@ -142,12 +148,15 @@ export default function RadiologyViewer({ study, currentUser }: RadiologyViewerP
 
   // Reset image transformations
   const handleReset = () => {
-    setBrightness(100)
-    setContrast(100)
-    setZoom(100)
-    setInvert(false)
-    setRotation(0)
-    setFlipped({ horizontal: false, vertical: false })
+    updateViewboxSettings(state.currentImageIndex, {
+      panOffset: { x: 0, y: 0 },
+      zoom: 100,
+      brightness: 100,
+      contrast: 100,
+      invert: false,
+      rotation: 0,
+      flipped: { horizontal: false, vertical: false },
+    })
     setShouldReset(true)
 
     // Reset the flag after a short delay to allow the canvas to respond
@@ -158,60 +167,89 @@ export default function RadiologyViewer({ study, currentUser }: RadiologyViewerP
 
   // Handle image inversion
   const handleInvert = () => {
-    setInvert(!invert)
+    updateViewboxSettings(state.currentImageIndex, {
+      invert: !currentImage.viewboxSettings.invert,
+    })
   }
 
   // Handle image rotation
   const handleRotate = (direction: "clockwise" | "counterclockwise") => {
-    setRotation((prev) => {
-      const newRotation = direction === "clockwise" ? (prev + 90) % 360 : (prev - 90 + 360) % 360
-      return newRotation
+    const currentRotation = currentImage.viewboxSettings.rotation
+    const newRotation = direction === "clockwise" ? (currentRotation + 90) % 360 : (currentRotation - 90 + 360) % 360
+
+    updateViewboxSettings(state.currentImageIndex, {
+      rotation: newRotation,
     })
   }
 
   // Handle image flipping
   const handleFlip = (axis: "horizontal" | "vertical") => {
-    setFlipped((prev) => ({
-      ...prev,
-      [axis]: !prev[axis],
-    }))
+    const currentFlipped = currentImage.viewboxSettings.flipped
+    updateViewboxSettings(state.currentImageIndex, {
+      flipped: {
+        ...currentFlipped,
+        [axis]: !currentFlipped[axis],
+      },
+    })
+  }
+
+  // Handle brightness change
+  const handleBrightnessChange = (value: number) => {
+    updateViewboxSettings(state.currentImageIndex, {
+      brightness: value,
+    })
+  }
+
+  // Handle contrast change
+  const handleContrastChange = (value: number) => {
+    updateViewboxSettings(state.currentImageIndex, {
+      contrast: value,
+    })
+  }
+
+  // Handle zoom change
+  const handleZoomChange = (value: number) => {
+    updateViewboxSettings(state.currentImageIndex, {
+      zoom: value,
+    })
   }
 
   // Handle keyboard shortcuts
   useHotkeys("ctrl+z", () => {
     // Undo last annotation
-    const imageKey = currentImageIndex.toString()
-    if (annotations[imageKey]?.length > 0) {
-      const newAnnotations = { ...annotations }
-      newAnnotations[imageKey] = [...newAnnotations[imageKey].slice(0, -1)]
-      setAnnotations(newAnnotations)
+    if (currentImage.annotations.length > 0) {
+      const newAnnotations = [...currentImage.annotations.slice(0, -1)]
+      updateAnnotations(state.currentImageIndex, newAnnotations)
       toast({ title: "Undo", description: "Last annotation undone" })
     }
   })
+
   useHotkeys("delete", () => {
     // Delete selected annotation
     if (selectedAnnotationIndex !== null) {
       handleDeleteAnnotation(selectedAnnotationIndex)
     }
   })
+
   useHotkeys("r", () => handleReset())
   useHotkeys("i", () => handleInvert())
-  useHotkeys("=", () => setZoom((prev) => Math.min(prev + 10, 500)))
-  useHotkeys("-", () => setZoom((prev) => Math.max(prev - 10, 10)))
+  useHotkeys("=", () => handleZoomChange(Math.min(currentImage.viewboxSettings.zoom + 10, 500)))
+  useHotkeys("-", () => handleZoomChange(Math.max(currentImage.viewboxSettings.zoom - 10, 10)))
   useHotkeys("right", () => handleNextImage())
   useHotkeys("left", () => handlePrevImage())
   useHotkeys("f", () => toggleFullscreen())
+  useHotkeys("d", () => setTheme(theme === "dark" ? "light" : "dark"))
 
   // Handle next/prev image navigation
   const handleNextImage = () => {
-    if (currentImageIndex < images.length - 1) {
-      setCurrentImageIndex((prev) => prev + 1)
+    if (state.currentImageIndex < state.images.length - 1) {
+      setCurrentImageIndex(state.currentImageIndex + 1)
     }
   }
 
   const handlePrevImage = () => {
-    if (currentImageIndex > 0) {
-      setCurrentImageIndex((prev) => prev - 1)
+    if (state.currentImageIndex > 0) {
+      setCurrentImageIndex(state.currentImageIndex - 1)
     }
   }
 
@@ -256,107 +294,18 @@ export default function RadiologyViewer({ study, currentUser }: RadiologyViewerP
     setShowUploadDialog(true)
   }
 
-  // Handle layout change
-  const handleLayoutChange = (layout: string) => {
-    setSelectedLayout(layout)
-    // Reset active viewbox to 0 when changing layout
-    setActiveViewboxIndex(0)
-  }
-
   // Handle file upload
   const handleFileUpload = useCallback(
     async (files: File[]) => {
-      if (!study.id) {
-        toast({
-          title: "Upload Error",
-          description: "Study ID is missing. Cannot upload images.",
-          variant: "destructive",
-        })
-        return
-      }
-
-      setIsUploading(true)
-      const newImages = [...images]
-
-      try {
-        for (const file of files) {
-          // Check file type
-          const fileType = file.type.toLowerCase()
-          const isValidType =
-            fileType.includes("image/") || fileType.includes("dicom") || file.name.toLowerCase().endsWith(".dcm")
-
-          if (!isValidType) {
-            toast({
-              title: "Invalid File Type",
-              description: `File ${file.name} is not a supported image format.`,
-              variant: "destructive",
-            })
-            continue
-          }
-
-          // Create object URL for immediate display
-          const objectUrl = URL.createObjectURL(file)
-          newImages.push(objectUrl)
-
-          // Initialize annotations for the new image
-          const newAnnotations = { ...annotations }
-          newAnnotations[newImages.length - 1] = []
-          setAnnotations(newAnnotations)
-
-          // Upload to server
-          const { imageUrl, error } = await uploadRadiologyImage(file, study.id)
-
-          if (error) {
-            toast({
-              title: "Upload Failed",
-              description: `Failed to upload ${file.name}: ${error}`,
-              variant: "destructive",
-            })
-            // Remove the object URL if upload failed
-            const index = newImages.indexOf(objectUrl)
-            if (index !== -1) {
-              newImages.splice(index, 1)
-              // Also remove annotations for this image
-              const updatedAnnotations = { ...newAnnotations }
-              delete updatedAnnotations[index.toString()]
-              setAnnotations(updatedAnnotations)
-            }
-          } else if (imageUrl) {
-            // Replace object URL with actual URL
-            const index = newImages.indexOf(objectUrl)
-            if (index !== -1) {
-              newImages[index] = imageUrl
-            }
-
-            toast({
-              title: "Upload Successful",
-              description: `${file.name} uploaded successfully.`,
-            })
-          }
-        }
-
-        setImages(newImages)
-        // Navigate to the newly added image
-        setCurrentImageIndex(newImages.length - 1)
-      } catch (error) {
-        console.error("Error uploading files:", error)
-        toast({
-          title: "Upload Error",
-          description: "An unexpected error occurred during upload.",
-          variant: "destructive",
-        })
-      } finally {
-        setIsUploading(false)
-        setShowUploadDialog(false)
-      }
+      await uploadImages(files)
     },
-    [study.id, images, annotations],
+    [uploadImages],
   )
 
   // Handle adding a text annotation
   const handleAddTextAnnotation = (text: string) => {
-    const imageKey = currentImageIndex.toString()
     const newAnnotation = {
+      id: uuidv4(),
       type: "text",
       text,
       x: textAnnotationPosition.x,
@@ -366,12 +315,8 @@ export default function RadiologyViewer({ study, currentUser }: RadiologyViewerP
       backgroundColor: "rgba(255, 255, 255, 0.7)",
     }
 
-    const newAnnotations = { ...annotations }
-    if (!newAnnotations[imageKey]) {
-      newAnnotations[imageKey] = []
-    }
-    newAnnotations[imageKey] = [...newAnnotations[imageKey], newAnnotation]
-    setAnnotations(newAnnotations)
+    const newAnnotations = [...currentImage.annotations, newAnnotation]
+    updateAnnotations(state.currentImageIndex, newAnnotations)
     setShowTextDialog(false)
     setActiveToolId("select") // Switch to select tool after adding text
   }
@@ -383,14 +328,9 @@ export default function RadiologyViewer({ study, currentUser }: RadiologyViewerP
 
   // Handle annotation deletion
   const handleDeleteAnnotation = (index: number) => {
-    const imageKey = currentImageIndex.toString()
-    if (annotations[imageKey] && index >= 0 && index < annotations[imageKey].length) {
-      const newAnnotations = { ...annotations }
-      newAnnotations[imageKey] = [
-        ...newAnnotations[imageKey].slice(0, index),
-        ...newAnnotations[imageKey].slice(index + 1),
-      ]
-      setAnnotations(newAnnotations)
+    if (index >= 0 && index < currentImage.annotations.length) {
+      const newAnnotations = [...currentImage.annotations.slice(0, index), ...currentImage.annotations.slice(index + 1)]
+      updateAnnotations(state.currentImageIndex, newAnnotations)
       setSelectedAnnotationIndex(null)
       toast({
         title: "Annotation Deleted",
@@ -399,14 +339,32 @@ export default function RadiologyViewer({ study, currentUser }: RadiologyViewerP
     }
   }
 
-  // Handle viewbox selection in multi-image layouts
-  const handleViewboxSelect = (index: number) => {
-    setActiveViewboxIndex(index)
+  // Delete all annotations for the current image
+  const handleClearAllAnnotations = () => {
+    if (currentImage.annotations.length > 0) {
+      updateAnnotations(state.currentImageIndex, [])
+      setSelectedAnnotationIndex(null)
+      toast({
+        title: "Annotations Cleared",
+        description: "All annotations for this image have been removed.",
+      })
+    }
+  }
+
+  // Handle image deletion
+  const handleDeleteCurrentImage = () => {
+    setShowDeleteDialog(true)
+  }
+
+  // Confirm image deletion
+  const confirmDeleteImage = () => {
+    deleteImage(state.currentImageIndex)
+    setShowDeleteDialog(false)
   }
 
   // Get the number of viewboxes based on the layout
   const getViewboxCount = () => {
-    switch (selectedLayout) {
+    switch (state.layout) {
       case "1x2":
         return 2
       case "2x2":
@@ -416,41 +374,41 @@ export default function RadiologyViewer({ study, currentUser }: RadiologyViewerP
     }
   }
 
-  // Delete all annotations for the current image
-  const handleClearAllAnnotations = () => {
-    const imageKey = currentImageIndex.toString()
-    if (annotations[imageKey]?.length > 0) {
-      const newAnnotations = { ...annotations }
-      newAnnotations[imageKey] = []
-      setAnnotations(newAnnotations)
-      setSelectedAnnotationIndex(null)
-      toast({
-        title: "Annotations Cleared",
-        description: "All annotations for this image have been removed.",
-      })
-    }
+  // Toggle theme
+  const toggleTheme = () => {
+    setTheme(theme === "dark" ? "light" : "dark")
   }
 
   return (
-    <div className="flex h-[calc(100vh-8rem)] flex-col">
+    <div className="flex h-full flex-col">
       {/* Header */}
-      <div className="flex items-center justify-between gap-4 pb-4">
+      <div className="flex items-center justify-between gap-4 p-4 border-b">
         <div className="flex items-center gap-2">
           <Button variant="outline" size="icon" onClick={() => router.back()}>
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div>
-            <h1 className="text-2xl font-semibold tracking-tight text-gray-900">{study.study_description}</h1>
+            <h1 className="text-2xl font-semibold tracking-tight">{state.study?.study_description}</h1>
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <span>Patient: {study.patient_name || "Unknown"}</span>
+              <span>Patient: {state.study?.patient_name || "Unknown"}</span>
               <span>•</span>
-              <span>{format(new Date(study.study_date), "PPP")}</span>
-              <Badge variant="outline">{study.modality}</Badge>
+              <span>{format(new Date(state.study?.study_date), "PPP")}</span>
+              <Badge variant="outline">{state.study?.modality}</Badge>
             </div>
+            
           </div>
         </div>
         <div className="flex items-center gap-2">
           <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="outline" size="icon" onClick={toggleTheme}>
+                  {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Toggle Theme (D)</TooltipContent>
+            </Tooltip>
+
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button variant="outline" size="icon" onClick={handleUpload}>
@@ -500,52 +458,52 @@ export default function RadiologyViewer({ study, currentUser }: RadiologyViewerP
       </div>
 
       {/* Main content area */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
-        <div className="flex items-center justify-between gap-2">
-          <TabsList>
-            <TabsTrigger value="images">
-              <ImageIcon className="mr-2 h-4 w-4" />
-              Images
-            </TabsTrigger>
-            <TabsTrigger value="report">
-              <FileText className="mr-2 h-4 w-4" />
-              Report
-            </TabsTrigger>
-            <TabsTrigger value="info">
-              <HeartPulse className="mr-2 h-4 w-4" />
-              Patient Info
-            </TabsTrigger>
-          </TabsList>
+      <div className="flex-1 flex flex-col">
+        <div className="flex items-center justify-between gap-2 p-2 border-b">
+          <Tabs value={state.viewMode} onValueChange={(value) => setViewMode(value as "images" | "report" | "info")}>
+            <TabsList>
+              <TabsTrigger value="images">
+                <ImageIcon className="mr-2 h-4 w-4" />
+                Images
+              </TabsTrigger>
+              <TabsTrigger value="report">
+                <FileText className="mr-2 h-4 w-4" />
+                Report
+              </TabsTrigger>
+              <TabsTrigger value="info">
+                <HeartPulse className="mr-2 h-4 w-4" />
+                Patient Info
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
 
-          {activeTab === "images" && (
-            <div className="flex items-center gap-2">
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="sm">
-                    <LayoutTemplate className="mr-2 h-4 w-4" />
-                    Layout: {selectedLayout}
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent>
-                  <DropdownMenuItem onClick={() => handleLayoutChange("1x1")}>
-                    <Grid className="mr-2 h-4 w-4" />
-                    1x1
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleLayoutChange("1x2")}>
-                    <Grid className="mr-2 h-4 w-4" />
-                    1x2
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleLayoutChange("2x2")}>
-                    <Grid className="mr-2 h-4 w-4" />
-                    2x2
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-          )}
+          <div className="flex items-center gap-2">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm">
+                  <LayoutTemplate className="mr-2 h-4 w-4" />
+                  Layout: {state.layout}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent>
+                <DropdownMenuItem onClick={() => setLayout("1x1")}>
+                  <Grid className="mr-2 h-4 w-4" />
+                  1x1
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setLayout("1x2")}>
+                  <Grid className="mr-2 h-4 w-4" />
+                  1x2
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setLayout("2x2")}>
+                  <Grid className="mr-2 h-4 w-4" />
+                  2x2
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </div>
 
-        <TabsContent value="images" className="flex-1 flex flex-row mt-0 overflow-hidden">
+        <div className="flex-1 flex flex-row overflow-hidden">
           {/* Sidebar */}
           <div className={`border-r ${sidebarOpen ? "w-64" : "w-12"} flex flex-col transition-all`}>
             <div className="p-2 flex justify-between items-center">
@@ -560,23 +518,23 @@ export default function RadiologyViewer({ study, currentUser }: RadiologyViewerP
                 <div className="p-2 space-y-2">
                   <Card className="hover:bg-accent transition-colors cursor-pointer overflow-hidden">
                     <CardContent className="p-2">
-                      <div className="font-medium text-sm mb-1">Series 1: {study.modality || "Images"}</div>
+                      <div className="font-medium text-sm mb-1">Series 1: {state.study?.modality || "Images"}</div>
                       <div className="grid grid-cols-2 gap-1">
-                        {images.slice(0, 8).map((img, i) => (
+                        {state.images.slice(0, 8).map((img, i) => (
                           <div
                             key={i}
                             className={`aspect-square bg-muted rounded-sm overflow-hidden relative cursor-pointer ${
-                              i === currentImageIndex ? "ring-2 ring-primary" : ""
+                              i === state.currentImageIndex ? "ring-2 ring-primary" : ""
                             }`}
                             onClick={() => setCurrentImageIndex(i)}
                           >
                             <img
-                              src={img || "/placeholder.svg"}
+                              src={img.url || "/placeholder.svg"}
                               alt={`Thumbnail ${i + 1}`}
                               className="object-cover w-full h-full"
                             />
                             <div className="absolute bottom-0 right-0 bg-background/80 text-xs px-1">{i + 1}</div>
-                            {annotations[i.toString()]?.length > 0 && (
+                            {img.annotations?.length > 0 && (
                               <div className="absolute top-0 right-0 bg-primary/80 text-white text-xs px-1 rounded-bl">
                                 <Layers className="h-3 w-3" />
                               </div>
@@ -584,26 +542,40 @@ export default function RadiologyViewer({ study, currentUser }: RadiologyViewerP
                           </div>
                         ))}
                       </div>
-                      {images.length > 8 && (
+                      {state.images.length > 8 && (
                         <div className="text-xs text-center mt-1 text-muted-foreground">
-                          + {images.length - 8} more images
+                          + {state.images.length - 8} more images
                         </div>
                       )}
                     </CardContent>
                   </Card>
+
+                  {/* Image actions */}
+                  <div className="flex justify-between">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full"
+                      onClick={handleDeleteCurrentImage}
+                      disabled={state.images.length <= 1}
+                    >
+                      <Trash2 className="mr-2 h-4 w-4" />
+                      Delete Image
+                    </Button>
+                  </div>
                 </div>
               ) : (
                 <div className="p-2">
-                  {images.slice(0, 4).map((img, i) => (
+                  {state.images.slice(0, 4).map((img, i) => (
                     <div
                       key={i}
                       className={`mb-1 aspect-square bg-muted rounded-sm overflow-hidden cursor-pointer ${
-                        i === currentImageIndex ? "ring-2 ring-primary" : ""
+                        i === state.currentImageIndex ? "ring-2 ring-primary" : ""
                       }`}
                       onClick={() => setCurrentImageIndex(i)}
                     >
                       <img
-                        src={img || "/placeholder.svg"}
+                        src={img.url || "/placeholder.svg"}
                         alt={`Thumbnail ${i + 1}`}
                         className="object-cover w-full h-full"
                       />
@@ -619,28 +591,30 @@ export default function RadiologyViewer({ study, currentUser }: RadiologyViewerP
                   <div className="flex items-center gap-2 mb-2">
                     <Avatar className="h-8 w-8">
                       <AvatarFallback className="bg-primary/10 text-primary text-xs">
-                        {study.patient_name?.charAt(0) || "P"}
+                        {state.study?.patient_name?.charAt(0) || "P"}
                       </AvatarFallback>
                     </Avatar>
                     <div className="overflow-hidden">
-                      <p className="font-medium text-sm truncate">{study.patient_name || "Unknown"}</p>
-                      <p className="text-xs text-muted-foreground truncate">ID: {study.patient_id || "Unknown"}</p>
+                      <p className="font-medium text-sm truncate">{state.study?.patient_name || "Unknown"}</p>
+                      <p className="text-xs text-muted-foreground truncate">
+                        ID: {`${state.study?.patient.id.slice(0, 4)}...${state.study?.patient.id.slice(-4)}`}
+                      </p>
                     </div>
                   </div>
                   <div className="text-xs space-y-1 text-muted-foreground">
                     <div className="flex justify-between">
                       <span>Study Date:</span>
                       <span className="font-medium text-foreground">
-                        {format(new Date(study.study_date), "MM/dd/yyyy")}
+                        {format(new Date(state.study?.study_date), "MM/dd/yyyy")}
                       </span>
                     </div>
                     <div className="flex justify-between">
                       <span>Modality:</span>
-                      <span className="font-medium text-foreground">{study.modality}</span>
+                      <span className="font-medium text-foreground">{state.study?.modality}</span>
                     </div>
                     <div className="flex justify-between">
                       <span>Images:</span>
-                      <span className="font-medium text-foreground">{images.length}</span>
+                      <span className="font-medium text-foreground">{state.images.length}</span>
                     </div>
                   </div>
                 </div>
@@ -676,7 +650,7 @@ export default function RadiologyViewer({ study, currentUser }: RadiologyViewerP
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <Button
-                          variant={invert ? "secondary" : "ghost"}
+                          variant={currentImage.viewboxSettings.invert ? "secondary" : "ghost"}
                           size="icon"
                           className="h-8 w-8"
                           onClick={handleInvert}
@@ -752,18 +726,13 @@ export default function RadiologyViewer({ study, currentUser }: RadiologyViewerP
                     <Separator orientation="vertical" className="mx-1 h-8" />
 
                     <Tooltip>
-                      <TooltipTrigger asChild></TooltipTrigger>
-                      <TooltipContent>Clear All Annotations</TooltipContent>
-                    </Tooltip>
-
-                    <Tooltip>
                       <TooltipTrigger asChild>
                         <Button
                           variant="ghost"
                           size="icon"
                           className="h-8 w-8"
                           onClick={handleClearAllAnnotations}
-                          disabled={!annotations[currentImageIndex.toString()]?.length}
+                          disabled={!currentImage.annotations?.length}
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
@@ -835,16 +804,16 @@ export default function RadiologyViewer({ study, currentUser }: RadiologyViewerP
                       variant="ghost"
                       size="icon"
                       className="h-8 w-8"
-                      onClick={() => setZoom(Math.max(zoom - 10, 10))}
+                      onClick={() => handleZoomChange(Math.max(currentImage.viewboxSettings.zoom - 10, 10))}
                     >
                       <ZoomOut className="h-4 w-4" />
                     </Button>
-                    <span className="text-xs w-12 text-center">{zoom}%</span>
+                    <span className="text-xs w-12 text-center">{currentImage.viewboxSettings.zoom}%</span>
                     <Button
                       variant="ghost"
                       size="icon"
                       className="h-8 w-8"
-                      onClick={() => setZoom(Math.min(zoom + 10, 500))}
+                      onClick={() => handleZoomChange(Math.min(currentImage.viewboxSettings.zoom + 10, 500))}
                     >
                       <ZoomIn className="h-4 w-4" />
                     </Button>
@@ -858,19 +827,19 @@ export default function RadiologyViewer({ study, currentUser }: RadiologyViewerP
                       size="icon"
                       className="h-8 w-8"
                       onClick={handlePrevImage}
-                      disabled={currentImageIndex === 0}
+                      disabled={state.currentImageIndex === 0}
                     >
                       <ChevronLeft className="h-4 w-4" />
                     </Button>
                     <span className="text-xs w-16 text-center">
-                      {currentImageIndex + 1} / {images.length}
+                      {state.currentImageIndex + 1} / {state.images.length}
                     </span>
                     <Button
                       variant="ghost"
                       size="icon"
                       className="h-8 w-8"
                       onClick={handleNextImage}
-                      disabled={currentImageIndex === images.length - 1}
+                      disabled={state.currentImageIndex === state.images.length - 1}
                     >
                       <ChevronRight className="h-4 w-4" />
                     </Button>
@@ -883,27 +852,28 @@ export default function RadiologyViewer({ study, currentUser }: RadiologyViewerP
             <div ref={canvasContainerRef} className="flex-1 overflow-hidden bg-black relative">
               <ImageCanvas
                 ref={canvasRef}
-                imageUrl={images[currentImageIndex]}
-                zoom={zoom}
-                brightness={brightness}
-                contrast={contrast}
-                invert={invert}
-                rotation={rotation}
-                flipped={flipped}
+                imageUrl={currentImage.url}
+                zoom={currentImage.viewboxSettings.zoom}
+                brightness={currentImage.viewboxSettings.brightness}
+                contrast={currentImage.viewboxSettings.contrast}
+                invert={currentImage.viewboxSettings.invert}
+                rotation={currentImage.viewboxSettings.rotation}
+                flipped={currentImage.viewboxSettings.flipped}
                 activeTool={activeToolId}
                 shouldReset={shouldReset}
-                layout={selectedLayout}
-                annotations={annotations[currentImageIndex.toString()] || []}
-                onAnnotationsChange={(newAnnotations) => {
-                  const updatedAnnotations = { ...annotations }
-                  updatedAnnotations[currentImageIndex.toString()] = newAnnotations
-                  setAnnotations(updatedAnnotations)
-                }}
+                layout={state.layout}
+                annotations={currentImage.annotations || []}
+                onAnnotationsChange={(newAnnotations) => updateAnnotations(state.currentImageIndex, newAnnotations)}
                 selectedAnnotationIndex={selectedAnnotationIndex}
                 onAnnotationSelect={handleAnnotationSelect}
-                activeViewboxIndex={activeViewboxIndex}
-                onViewboxSelect={handleViewboxSelect}
+                activeViewboxIndex={state.activeViewboxIndex}
+                onViewboxSelect={setActiveViewboxIndex}
                 viewboxCount={getViewboxCount()}
+                onPanOffsetChange={(offset) => {
+                  updateViewboxSettings(state.currentImageIndex, {
+                    panOffset: offset,
+                  })
+                }}
               />
 
               {/* Image adjustment controls */}
@@ -911,27 +881,27 @@ export default function RadiologyViewer({ study, currentUser }: RadiologyViewerP
                 <div className="space-y-1">
                   <div className="flex justify-between text-xs">
                     <span>Brightness</span>
-                    <span>{brightness}%</span>
+                    <span>{currentImage.viewboxSettings.brightness}%</span>
                   </div>
                   <Slider
-                    value={[brightness]}
+                    value={[currentImage.viewboxSettings.brightness]}
                     min={0}
                     max={200}
                     step={1}
-                    onValueChange={(value) => setBrightness(value[0])}
+                    onValueChange={(value) => handleBrightnessChange(value[0])}
                   />
                 </div>
                 <div className="space-y-1">
                   <div className="flex justify-between text-xs">
                     <span>Contrast</span>
-                    <span>{contrast}%</span>
+                    <span>{currentImage.viewboxSettings.contrast}%</span>
                   </div>
                   <Slider
-                    value={[contrast]}
+                    value={[currentImage.viewboxSettings.contrast]}
                     min={0}
                     max={200}
                     step={1}
-                    onValueChange={(value) => setContrast(value[0])}
+                    onValueChange={(value) => handleContrastChange(value[0])}
                   />
                 </div>
               </div>
@@ -951,86 +921,23 @@ export default function RadiologyViewer({ study, currentUser }: RadiologyViewerP
                     </Button>
                   </div>
                   <div className="text-xs text-muted-foreground">
-                    {annotations[currentImageIndex.toString()]?.[selectedAnnotationIndex]?.type === "text" ? (
-                      <span>Text: {annotations[currentImageIndex.toString()]?.[selectedAnnotationIndex]?.text}</span>
+                    {currentImage.annotations?.[selectedAnnotationIndex]?.type === "text" ? (
+                      <span>Text: {currentImage.annotations[selectedAnnotationIndex]?.text}</span>
                     ) : (
-                      <span>Type: {annotations[currentImageIndex.toString()]?.[selectedAnnotationIndex]?.type}</span>
+                      <span>Type: {currentImage.annotations[selectedAnnotationIndex]?.type}</span>
                     )}
                   </div>
                 </div>
               )}
             </div>
           </div>
-        </TabsContent>
-
-        <TabsContent value="report" className="flex-1 mt-0">
-          <RadiologyReport study={study} />
-        </TabsContent>
-
-        <TabsContent value="info" className="flex-1 mt-0 p-4">
-          <div className="max-w-3xl mx-auto">
-            <Card>
-              <CardContent className="p-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div>
-                    <h3 className="text-lg font-medium mb-4">Patient Information</h3>
-                    <div className="space-y-3">
-                      <div className="grid grid-cols-3 gap-1">
-                        <span className="text-muted-foreground text-sm">Name:</span>
-                        <span className="col-span-2 font-medium">{study.patient_name || "Unknown"}</span>
-                      </div>
-                      <div className="grid grid-cols-3 gap-1">
-                        <span className="text-muted-foreground text-sm">Patient ID:</span>
-                        <span className="col-span-2 font-medium">{study.patient_id || "Unknown"}</span>
-                      </div>
-                      <div className="grid grid-cols-3 gap-1">
-                        <span className="text-muted-foreground text-sm">Birth Date:</span>
-                        <span className="col-span-2 font-medium">Not Available</span>
-                      </div>
-                      <div className="grid grid-cols-3 gap-1">
-                        <span className="text-muted-foreground text-sm">Gender:</span>
-                        <span className="col-span-2 font-medium">Not Available</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div>
-                    <h3 className="text-lg font-medium mb-4">Study Information</h3>
-                    <div className="space-y-3">
-                      <div className="grid grid-cols-3 gap-1">
-                        <span className="text-muted-foreground text-sm">Study Date:</span>
-                        <span className="col-span-2 font-medium">{format(new Date(study.study_date), "PPP")}</span>
-                      </div>
-                      <div className="grid grid-cols-3 gap-1">
-                        <span className="text-muted-foreground text-sm">Accession #:</span>
-                        <span className="col-span-2 font-medium">{study.accession_number || "Not Available"}</span>
-                      </div>
-                      <div className="grid grid-cols-3 gap-1">
-                        <span className="text-muted-foreground text-sm">Modality:</span>
-                        <span className="col-span-2 font-medium">{study.modality}</span>
-                      </div>
-                      <div className="grid grid-cols-3 gap-1">
-                        <span className="text-muted-foreground text-sm">Referring Physician:</span>
-                        <span className="col-span-2 font-medium">{study.referring_physician || "Not Available"}</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="mt-6">
-                  <h3 className="text-lg font-medium mb-4">Clinical Information</h3>
-                  <p className="text-sm">{study.clinical_information || "No clinical information provided."}</p>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
-      </Tabs>
+        </div>
+      </div>
 
       <SharedStudiesDialog
         open={showShareDialog}
         onOpenChange={setShowShareDialog}
-        study={study}
+        study={state.study}
         currentUser={currentUser}
       />
 
@@ -1038,10 +945,18 @@ export default function RadiologyViewer({ study, currentUser }: RadiologyViewerP
         open={showUploadDialog}
         onOpenChange={setShowUploadDialog}
         onUpload={handleFileUpload}
-        isUploading={isUploading}
+        isUploading={state.isLoading}
       />
 
       <TextAnnotationDialog open={showTextDialog} onOpenChange={setShowTextDialog} onSave={handleAddTextAnnotation} />
+
+      <DeleteImageDialog
+        open={showDeleteDialog}
+        onOpenChange={setShowDeleteDialog}
+        onConfirm={confirmDeleteImage}
+        imageIndex={state.currentImageIndex + 1}
+        totalImages={state.images.length}
+      />
     </div>
   )
 }

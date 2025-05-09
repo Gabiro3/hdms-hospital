@@ -4,7 +4,7 @@ import { cookies } from "next/headers"
 import DashboardLayout from "@/components/layout/dashboard-layout"
 import PatientEditForm from "@/components/patients/patient-edit-form"
 import { createServerComponentClient } from "@supabase/auth-helpers-nextjs"
-import { getPatientById } from "@/services/patient-service"
+import { getGeneralPatientById } from "@/services/patient-service"
 
 export const metadata: Metadata = {
   title: "Edit Patient | Hospital Diagnosis Management System",
@@ -48,7 +48,7 @@ export default async function EditPatientPage({
   }
 
   // Get patient data
-  const { patient, error } = await getPatientById(params.id, userData.hospital_id)
+  const { patient, error } = await getGeneralPatientById(params.id, userData.hospital_id)
 
   if (error || !patient) {
     notFound()

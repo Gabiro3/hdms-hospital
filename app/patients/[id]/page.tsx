@@ -29,7 +29,7 @@ export default async function PatientDetailPage({
   }
 
   // Get user data
-  const { data: userData } = await supabase.from("users").select("hospital_id").eq("id", session.user.id).single()
+  const { data: userData } = await supabase.from("users").select("hospital_id, full_name, id").eq("id", session.user.id).single()
 
   if (!userData) {
     redirect("/login")
@@ -49,9 +49,6 @@ export default async function PatientDetailPage({
   if (patient.hospital_id !== userData.hospital_id) {
     redirect("/dashboard")
   }
-
-  // Get patient's diagnoses
-  const { diagnoses } = await getDiagnoses(userData.hospital_id, id)
 
   return (
     <DashboardLayout>

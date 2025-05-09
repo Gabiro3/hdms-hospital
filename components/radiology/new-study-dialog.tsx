@@ -109,7 +109,6 @@ useEffect(() => {
       try {
         const { patients: patientData } = await getGeneralPatients(hospitalId)
         if (patientData) {
-          console.log("Fetched patients:", patientData)
           setPatients(patientData)
         }
       } catch (error) {

@@ -72,7 +72,7 @@ export default function PatientTimeline({ patient }: PatientTimelineProps) {
             <div className="pb-8">
               <div className="flex items-baseline justify-between">
                 <p className="text-sm font-medium">{format(parseISO(event.date), "MMMM d, yyyy")}</p>
-                <p className="text-xs text-muted-foreground">Dr. {event.doctor}</p>
+                <p className="text-xs text-muted-foreground">Recorded by Dr. {event.doctor}</p>
               </div>
               <h4 className="font-medium mt-1">{event.title}</h4>
               {event.type === "visit" && event.data.vitals && (

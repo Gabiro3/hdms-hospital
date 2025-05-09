@@ -38,7 +38,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import { toast } from "@/components/ui/use-toast"
+import { toast } from "@/hooks/use-toast"
 import { generatePatientPDF } from "@/lib/utils/pdf-utils"
 import PatientTimeline from "./patient-timeline"
 import PatientVitalsChart from "./patient-vitals-chart"
@@ -220,15 +220,7 @@ export default function PatientView({ patient, currentUser }: PatientViewProps) 
                 <Calendar className="h-4 w-4 text-muted-foreground" />
                 <div>
                   <p className="text-sm font-medium text-muted-foreground">Date of Birth</p>
-                  <p className="font-medium">{formatDateOfBirth()}</p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <Clock className="h-4 w-4 text-muted-foreground" />
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Age</p>
-                  <p className="font-medium">{calculateAge()}</p>
+                  <p className="font-medium">{formatDateOfBirth()} ({calculateAge()} years)</p>
                 </div>
               </div>
 

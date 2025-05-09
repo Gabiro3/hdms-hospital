@@ -134,7 +134,7 @@ export default function SharedStudiesList({ studies }: SharedStudiesListProps) {
                         <div className="flex items-center gap-2">
                           <h3 className="font-medium">{study.study_description}</h3>
                           <Badge variant="outline">{study.modality}</Badge>
-                          {!study.viewed && <Badge>New</Badge>}
+                          {!study.viewed ? <Badge className="bg-blue-600">New</Badge> : <Badge className="bg-green-600">Viewed</Badge>}
                         </div>
                         <p className="text-sm text-muted-foreground mt-1">Patient: {study.patient_name || "Unknown"}</p>
                       </div>
@@ -175,7 +175,7 @@ export default function SharedStudiesList({ studies }: SharedStudiesListProps) {
                     </div>
                   </div>
 
-                  <div className="flex items-center justify-between border-t md:border-l md:border-t-0 p-4 bg-muted/30">
+                  <div className="flex items-center justify-between border-t md:border-l md:border-t-0 p-4 bg-muted/30 space-x-2">
                     <div className="hidden md:block">
                       <Avatar className="h-10 w-10">
                         <AvatarFallback className="bg-primary/10">

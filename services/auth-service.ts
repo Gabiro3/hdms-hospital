@@ -82,7 +82,7 @@ export async function signUp(formData: FormData) {
 export async function signOut() {
   const supabase = createServerSupabaseClient()
   await supabase.auth.signOut()
-  cookies().delete("supabase-auth-token")
+  ;(await cookies()).delete("supabase-auth-token")
   redirect("/login")
 }
 

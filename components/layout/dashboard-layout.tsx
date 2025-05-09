@@ -1,14 +1,28 @@
 "use client"
 
 import type React from "react"
-
 import { useState, useEffect } from "react"
 import { useRouter, usePathname } from "next/navigation"
 import Link from "next/link"
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 import type { User } from "@supabase/supabase-js"
 import { Button } from "@/components/ui/button"
-import { LayoutDashboard, FileText, Users, Hospital, LogOut, Menu, X, Bell, Search, HelpCircle, FileBarChartIcon, FileArchive, FlaskConical, ComputerIcon } from "lucide-react"
+import {
+  LayoutDashboard,
+  FileText,
+  Users,
+  Hospital,
+  LogOut,
+  Menu,
+  X,
+  Bell,
+  Search,
+  HelpCircle,
+  FileBarChartIcon,
+  FileArchive,
+  FlaskConical,
+  ComputerIcon,
+} from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import {
   DropdownMenu,
@@ -18,6 +32,10 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { Badge } from "@/components/ui/badge"
+import NotificationDialog from "@/components/notifications/notification-dialog"
+import { NotificationsProvider } from "@/hooks/use-nofitications"
+import { Toaster } from "@/components/ui/toaster"
 
 interface DashboardLayoutProps {
   children: React.ReactNode
@@ -28,6 +46,8 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const [userProfile, setUserProfile] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [notificationsOpen, setNotificationsOpen] = useState(false)
+  const [unreadCount, setUnreadCount] = useState(0)
   const router = useRouter()
   const pathname = usePathname()
   const supabase = createClientComponentClient()
@@ -43,6 +63,15 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
         // Get user profile data
         const { data } = await supabase.from("users").select("*, hospitals(name)").eq("id", user.id).single()
         setUserProfile(data)
+
+        // Get unread notification count
+        const { count } = await supabase
+          .from("notifications")
+          .select("*", { count: "exact", head: true })
+          .eq("user_id", user.id)
+          .eq("is_read", false)
+
+        setUnreadCount(count || 0)
       }
 
       setLoading(false)
@@ -53,6 +82,41 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     }
 
     getUser()
+
+    // Set up real-time subscription for notifications
+    if (user) {
+      const channel = supabase
+        .channel("notifications")
+        .on(
+          "postgres_changes",
+          {
+            event: "INSERT",
+            schema: "public",
+            table: "notifications",
+            filter: `user_id=eq.${user.id}`,
+          },
+          () => {
+            setUnreadCount((prev) => prev + 1)
+          },
+        )
+        .on(
+          "postgres_changes",
+          {
+            event: "UPDATE",
+            schema: "public",
+            table: "notifications",
+            filter: `user_id=eq.${user.id} AND is_read=eq.true`,
+          },
+          () => {
+            setUnreadCount((prev) => Math.max(0, prev - 1))
+          },
+        )
+        .subscribe()
+
+      return () => {
+        supabase.removeChannel(channel)
+      }
+    }
 
     const {
       data: { subscription },
@@ -67,7 +131,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     return () => {
       subscription.unsubscribe()
     }
-  }, [router, supabase])
+  }, [router, supabase, user])
 
   const handleSignOut = async () => {
     await supabase.auth.signOut()
@@ -90,25 +154,21 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     { name: "Reports", href: "/reports", icon: FileArchive },
     { name: "Laboratory", href: "/lab", icon: FlaskConical },
     { name: "Support", href: "/support", icon: HelpCircle },
-  ];
-  
+  ]
+
   const navigation = baseNavigation
-    .filter(item => {
+    .filter((item) => {
       if (userProfile?.role === "LAB") {
-        return ["Dashboard", "Patients", "Reports", "Laboratory", "Support"].includes(item.name);
+        return ["Dashboard", "Patients", "Reports", "Laboratory", "Support"].includes(item.name)
       }
-  
+
       if (userProfile?.role === "IMAGING") {
-        return ["Dashboard", "Patients", "Imaging", "Support"].includes(item.name);
+        return ["Dashboard", "Patients", "Radiology & Imaging", "Support"].includes(item.name)
       }
-  
-      return true; // all items for other roles
+
+      return true // all items for other roles
     })
-    .concat(
-      userProfile?.is_hpadmin
-        ? [{ name: "Billings", href: "/billing", icon: FileBarChartIcon }]
-        : []
-    );  
+    .concat(userProfile?.is_hpadmin ? [{ name: "Billings", href: "/billing", icon: FileBarChartIcon }] : [])
   const getInitials = (name: string) => {
     return name
       .split(" ")
@@ -118,83 +178,22 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   }
 
   return (
-    <div className="flex h-screen bg-gray-50">
-      {/* Mobile sidebar toggle */}
-      <div className="fixed inset-0 z-40 lg:hidden">
-        {sidebarOpen ? (
-          <div
-            className="fixed inset-0 bg-gray-600 bg-opacity-75 transition-opacity"
-            onClick={() => setSidebarOpen(false)}
-          ></div>
-        ) : null}
-
-        <div
-          className={`fixed inset-y-0 left-0 z-40 w-64 transform bg-white transition duration-300 ease-in-out ${
-            sidebarOpen ? "translate-x-0" : "-translate-x-full"
-          }`}
-        >
-          <div className="flex h-16 items-center justify-between border-b border-gray-200 px-4">
-            <div className="flex items-center">
-              <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary">
-                <Hospital className="h-5 w-5 text-white" />
-              </div>
-              <span className="ml-2 text-lg font-semibold">HDMS</span>
-            </div>
-            <button
-              type="button"
-              className="rounded-md p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-600"
+    <NotificationsProvider>
+      <div className="flex h-screen bg-gray-50">
+        {/* Mobile sidebar toggle */}
+        <div className="fixed inset-0 z-40 lg:hidden">
+          {sidebarOpen ? (
+            <div
+              className="fixed inset-0 bg-gray-600 bg-opacity-75 transition-opacity"
               onClick={() => setSidebarOpen(false)}
-            >
-              <X className="h-5 w-5" />
-            </button>
-          </div>
-          <div className="flex flex-col h-full">
-            <div className="px-3 py-4">
-              <div className="space-y-1">
-                {navigation.map((item) => {
-                  const isActive = pathname.includes(item.href)
-                  return (
-                    <Link
-                      key={item.name}
-                      href={item.href}
-                      className={`sidebar-link ${isActive ? "active" : ""}`}
-                      onClick={() => setSidebarOpen(false)}
-                    >
-                      <item.icon className={`sidebar-icon ${isActive ? "text-primary" : ""}`} />
-                      {item.name}
-                    </Link>
-                  )
-                })}
-              </div>
-            </div>
-            <div className="mt-auto p-4">
-              <div className="flex items-center">
-                <Avatar className="h-9 w-9">
-                  <AvatarImage src="/user-profile.png" />
-                  <AvatarFallback>{userProfile?.full_name ? getInitials(userProfile.full_name) : "U"}</AvatarFallback>
-                </Avatar>
-                <div className="ml-3 min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium text-gray-900">{userProfile?.full_name}</p>
-                  <p className="truncate text-xs text-gray-500">{userProfile?.hospitals?.name}</p>
-                </div>
-              </div>
-              <Button
-                variant="outline"
-                className="mt-4 flex w-full items-center justify-center"
-                onClick={handleSignOut}
-              >
-                <LogOut className="mr-2 h-4 w-4" />
-                Sign out
-              </Button>
-            </div>
-          </div>
-        </div>
-      </div>
+            ></div>
+          ) : null}
 
-      {/* Desktop sidebar */}
-      <div className="hidden lg:flex lg:flex-shrink-0">
-        <div className="flex w-64 flex-col">
-          <div className="flex min-h-0 flex-1 flex-col border-r border-gray-200 bg-white">
+          <div
+            className={`fixed inset-y-0 left-0 z-40 w-64 transform bg-white transition duration-300 ease-in-out ${
+              sidebarOpen ? "translate-x-0" : "-translate-x-full"
+            }`}
+          >
             <div className="flex h-16 items-center justify-between border-b border-gray-200 px-4">
               <div className="flex items-center">
                 <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary">
@@ -202,15 +201,31 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                 </div>
                 <span className="ml-2 text-lg font-semibold">HDMS</span>
               </div>
+              <button
+                type="button"
+                className="rounded-md p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-600"
+                onClick={() => setSidebarOpen(false)}
+              >
+                <X className="h-5 w-5" />
+              </button>
             </div>
             <div className="flex flex-col h-full">
               <div className="px-3 py-4">
                 <div className="space-y-1">
                   {navigation.map((item) => {
-                    const isActive = pathname === item.href
+                    const isActive = pathname?.includes(item.href)
                     return (
-                      <Link key={item.name} href={item.href} className={`sidebar-link ${isActive ? "active" : ""}`}>
-                        <item.icon className={`sidebar-icon ${isActive ? "text-primary" : ""}`} />
+                      <Link
+                        key={item.name}
+                        href={item.href}
+                        className={`group flex items-center rounded-md px-3 py-2 text-sm font-medium ${
+                          isActive ? "bg-primary/10 text-primary" : "text-gray-700 hover:bg-gray-50 hover:text-gray-900"
+                        }`}
+                        onClick={() => setSidebarOpen(false)}
+                      >
+                        <item.icon
+                          className={`mr-3 h-5 w-5 flex-shrink-0 ${isActive ? "text-primary" : "text-gray-500 group-hover:text-gray-500"}`}
+                        />
                         {item.name}
                       </Link>
                     )
@@ -219,7 +234,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
               </div>
               <div className="mt-auto p-4">
                 <div className="flex items-center">
-                  <Avatar className="h-9 w-9">
+                  <Avatar className="h-14 w-14">
                     <AvatarImage src="/user-profile.png" />
                     <AvatarFallback>{userProfile?.full_name ? getInitials(userProfile.full_name) : "U"}</AvatarFallback>
                   </Avatar>
@@ -240,91 +255,156 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
             </div>
           </div>
         </div>
-      </div>
 
-      {/* Main content */}
-      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-        <div className="relative z-10 flex h-16 flex-shrink-0 border-b border-gray-200 bg-white shadow-sm">
-          <button
-            type="button"
-            className="border-r border-gray-200 px-4 text-gray-500 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-primary lg:hidden"
-            onClick={() => setSidebarOpen(true)}
-          >
-            <Menu className="h-6 w-6" />
-          </button>
-          <div className="flex flex-1 justify-between px-4">
-            <div className="flex flex-1 items-center">
-              <div className="max-w-2xl w-full lg:max-w-xs">
-                <label htmlFor="search" className="sr-only">
-                  Search
-                </label>
-                <div className="relative">
-                  <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-                    <Search className="h-4 w-4 text-gray-400" />
+        {/* Desktop sidebar */}
+        <div className="hidden lg:flex lg:flex-shrink-0">
+          <div className="flex w-64 flex-col">
+            <div className="flex min-h-0 flex-1 flex-col border-r border-gray-200 bg-white">
+              <div className="flex h-16 items-center justify-between border-b border-gray-200 px-4">
+                <div className="flex items-center">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary">
+                    <Hospital className="h-5 w-5 text-white" />
                   </div>
-                  <input
-                    id="search"
-                    name="search"
-                    className="block w-full rounded-md border-0 bg-white py-1.5 pl-10 pr-3 text-gray-900 ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6"
-                    placeholder="Search"
-                    type="search"
-                  />
+                  <span className="ml-2 text-lg font-semibold">HDMS</span>
                 </div>
               </div>
-            </div>
-            <div className="ml-4 flex items-center md:ml-6">
-              <button
-                type="button"
-                className="relative rounded-full bg-white p-1 text-gray-400 hover:text-gray-500 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
-              >
-                <span className="absolute -inset-1.5"></span>
-                <span className="sr-only">View notifications</span>
-                <Bell className="h-6 w-6" />
-              </button>
-
-              {/* Profile dropdown */}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" className="relative h-8 w-8 rounded-full">
-                    <Avatar className="h-8 w-8">
+              <div className="flex flex-col h-full">
+                <div className="px-3 py-4">
+                  <div className="space-y-1">
+                    {navigation.map((item) => {
+                      const isActive = pathname === item.href || pathname?.startsWith(`${item.href}/`)
+                      return (
+                        <Link
+                          key={item.name}
+                          href={item.href}
+                          className={`group flex items-center rounded-md px-3 py-2 text-sm font-medium ${
+                            isActive
+                              ? "bg-primary/10 text-primary"
+                              : "text-gray-700 hover:bg-gray-50 hover:text-gray-900"
+                          }`}
+                        >
+                          <item.icon
+                            className={`mr-3 h-5 w-5 flex-shrink-0 ${isActive ? "text-primary" : "text-gray-500 group-hover:text-gray-500"}`}
+                          />
+                          {item.name}
+                        </Link>
+                      )
+                    })}
+                  </div>
+                </div>
+                <div className="mt-auto p-4">
+                  <div className="flex items-center">
+                    <Avatar className="h-10 w-10">
                       <AvatarImage src="/user-profile.png" />
                       <AvatarFallback>
                         {userProfile?.full_name ? getInitials(userProfile.full_name) : "U"}
                       </AvatarFallback>
                     </Avatar>
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent className="w-56" align="end" forceMount>
-                  <DropdownMenuLabel className="font-normal">
-                    <div className="flex flex-col space-y-1">
-                      <p className="text-sm font-medium leading-none">{userProfile?.full_name}</p>
-                      <p className="text-xs leading-none text-muted-foreground">{user?.email}</p>
+                    <div className="ml-3 min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium text-gray-900">{userProfile?.full_name}</p>
+                      <p className="truncate text-xs text-gray-500">{userProfile?.hospitals?.name}</p>
                     </div>
-                  </DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem>
-                    <Link href="/profile" className="flex w-full">
-                      Profile
-                    </Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem>
-                    <Link href="/settings" className="flex w-full">
-                      Settings
-                    </Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={handleSignOut}>
+                  </div>
+                  <Button
+                    variant="outline"
+                    className="mt-4 flex w-full items-center justify-center"
+                    onClick={handleSignOut}
+                  >
                     <LogOut className="mr-2 h-4 w-4" />
-                    <span>Log out</span>
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+                    Sign out
+                  </Button>
+                </div>
+              </div>
             </div>
           </div>
         </div>
 
-        <main className="flex-1 overflow-y-auto bg-gray-50 p-6">{children}</main>
+        {/* Main content */}
+        <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+          <div className="relative z-10 flex h-16 flex-shrink-0 border-b border-gray-200 bg-white shadow-sm">
+            <button
+              type="button"
+              className="border-r border-gray-200 px-4 text-gray-500 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-primary lg:hidden"
+              onClick={() => setSidebarOpen(true)}
+            >
+              <Menu className="h-6 w-6" />
+            </button>
+            <div className="flex flex-1 justify-between px-4">
+              <div className="flex flex-1 items-center">
+                <div className="max-w-2xl w-full lg:max-w-xs">
+                  <label htmlFor="search" className="sr-only">
+                    Search
+                  </label>
+                  <div className="relative">
+                    <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+                      <Search className="h-4 w-4 text-gray-400" />
+                    </div>
+                    <input
+                      id="search"
+                      name="search"
+                      className="block w-full rounded-md border-0 bg-white py-1.5 pl-10 pr-3 text-gray-900 ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6"
+                      placeholder="Search"
+                      type="search"
+                    />
+                  </div>
+                </div>
+              </div>
+              <div className="ml-4 flex items-center md:ml-6">
+                <Button variant="ghost" size="icon" className="relative" onClick={() => setNotificationsOpen(true)}>
+                  <Bell className="h-10 w-10" />
+                  {unreadCount > 0 && (
+                    <Badge
+                      variant="destructive"
+                      className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center p-0 text-xs"
+                    >
+                      {unreadCount > 9 ? "9+" : unreadCount}
+                    </Badge>
+                  )}
+                </Button>
+
+                {/* Profile dropdown */}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" className="relative h-8 w-8 rounded-full">
+                      <Avatar className="h-10 w-10">
+                        <AvatarImage src="/user-profile.png" />
+                        <AvatarFallback>
+                          {userProfile?.full_name ? getInitials(userProfile.full_name) : "U"}
+                        </AvatarFallback>
+                      </Avatar>
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent className="w-56" align="end" forceMount>
+                    <DropdownMenuLabel className="font-normal">
+                      <div className="flex flex-col space-y-1">
+                        <p className="text-sm font-medium leading-none">{userProfile?.full_name}</p>
+                        <p className="text-xs leading-none text-muted-foreground">{user?.email}</p>
+                      </div>
+                    </DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem asChild>
+                      <Link href="/profile" className="flex w-full">
+                        Profile
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={handleSignOut}>
+                      <LogOut className="mr-2 h-4 w-4" />
+                      <span>Log out</span>
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+            </div>
+          </div>
+
+          <main className="flex-1 overflow-y-auto bg-gray-50 p-6">{children}</main>
+        </div>
+
+        {/* Notification Dialog */}
+        {user && <NotificationDialog open={notificationsOpen} onOpenChange={setNotificationsOpen} userId={user.id} />}
       </div>
-    </div>
+      <Toaster />
+    </NotificationsProvider>
   )
 }
