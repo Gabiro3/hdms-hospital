@@ -645,7 +645,7 @@ export async function createLabRequest(request: LabRequestInsert) {
           title: "New Lab Test Request",
           message: `You have been assigned a new ${request.test_type} lab test with ${request.priority} priority.`,
           type: "lab_result",
-          action_url: `/lab/requests/${data.id}`,
+          action_url: `/lab/`,
           is_read: false,
           metadata: {
             request_id: data.id,

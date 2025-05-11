@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import ProfileInformation from "@/components/profile/profile-information"
+import NotificationSettings from "@/components/profile/notification-settings"
 import ActivityLog from "@/components/profile/activity-log"
 import HospitalDetails from "@/components/profile/hospital-details"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -49,10 +50,11 @@ export default function ProfilePage() {
       </div>
 
       <Tabs defaultValue="profile" className="w-full">
-        <TabsList className="grid w-full grid-cols-3 mb-8">
+        <TabsList className="grid w-full grid-cols-4 mb-8">
           <TabsTrigger value="profile">Profile Information</TabsTrigger>
           <TabsTrigger value="activity">Activity Log</TabsTrigger>
           <TabsTrigger value="hospital">Hospital Details</TabsTrigger>
+          <TabsTrigger value="notifications">Notification Settings</TabsTrigger>
         </TabsList>
 
         <TabsContent value="profile" className="space-y-4">
@@ -65,6 +67,11 @@ export default function ProfilePage() {
 
         <TabsContent value="hospital" className="space-y-4">
           {userId && <HospitalDetails userId={userId} />}
+        </TabsContent>
+        <TabsContent value="notifications">
+          <div className="grid gap-6 md:grid-cols-2">
+            <NotificationSettings />
+          </div>
         </TabsContent>
       </Tabs>
     </div>

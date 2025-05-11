@@ -2,11 +2,22 @@
 
 import type React from "react"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useRef } from "react"
 import { useRouter } from "next/navigation"
-import { Bell, Info, CheckCircle, AlertTriangle, AlertCircle, Settings, FileText, User, X } from "lucide-react"
+import {
+  Bell,
+  Info,
+  CheckCircle,
+  AlertTriangle,
+  AlertCircle,
+  Settings,
+  FileText,
+  User,
+  X,
+  ImageIcon,
+} from "lucide-react"
 import { useNotifications } from "@/hooks/use-nofitications"
-import { markNotificationAsRead } from "@/services/notification-service"
+import { formatDistanceToNow } from "date-fns"
 
 interface ToastProps {
   id: string
@@ -14,37 +25,64 @@ interface ToastProps {
   message: string
   type: string
   action_url?: string
+  created_at: string
   onClose: () => void
-  style?: React.CSSProperties
+  onRead: () => void
 }
 
-function Toast({ id, title, message, type, action_url, onClose, style }: ToastProps) {
+function Toast({ id, title, message, type, action_url, created_at, onClose, onRead }: ToastProps) {
   const router = useRouter()
   const [isVisible, setIsVisible] = useState(true)
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   useEffect(() => {
-    const timer = setTimeout(() => {
+    // Set timeout to hide the toast after 5 seconds
+    timeoutRef.current = setTimeout(() => {
       setIsVisible(false)
-      setTimeout(onClose, 300) // Allow time for exit animation
+      // Allow time for exit animation before removing
+      setTimeout(onClose, 300)
     }, 5000)
 
-    return () => clearTimeout(timer)
+    return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current)
+      }
+    }
   }, [onClose])
 
-  const handleClick = async () => {
-    try {
-      // Mark as read
-      await markNotificationAsRead(id)
+  const handleClick = () => {
+    // Mark as read
+    onRead()
 
-      // Navigate if there's an action URL
-      if (action_url) {
-        router.push(action_url)
-      }
-
-      onClose()
-    } catch (error) {
-      console.error("Error handling notification click:", error)
+    // Navigate if there's an action URL
+    if (action_url) {
+      router.push(action_url)
     }
+
+    // Close the toast
+    setIsVisible(false)
+    setTimeout(onClose, 300)
+  }
+
+  const handleCloseClick = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    setIsVisible(false)
+    setTimeout(onClose, 300)
+  }
+
+  // Reset the timeout when user hovers over the toast
+  const handleMouseEnter = () => {
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current)
+    }
+  }
+
+  // Restart the timeout when user leaves the toast
+  const handleMouseLeave = () => {
+    timeoutRef.current = setTimeout(() => {
+      setIsVisible(false)
+      setTimeout(onClose, 300)
+    }, 5000)
   }
 
   const getIcon = () => {
@@ -65,6 +103,8 @@ function Toast({ id, title, message, type, action_url, onClose, style }: ToastPr
         return <FileText className="h-5 w-5 text-indigo-500" />
       case "patient":
         return <User className="h-5 w-5 text-teal-500" />
+      case "radiology":
+        return <ImageIcon className="h-5 w-5 text-pink-500" />
       default:
         return <Bell className="h-5 w-5 text-gray-500" />
     }
@@ -72,25 +112,24 @@ function Toast({ id, title, message, type, action_url, onClose, style }: ToastPr
 
   return (
     <div
-      className={`fixed bottom-4 right-4 bg-white rounded-lg shadow-lg border border-gray-200 p-4 max-w-sm w-full transform transition-all duration-300 ${
+      className={`bg-white rounded-lg shadow-lg border border-gray-200 p-4 max-w-sm w-full transform transition-all duration-300 ${
         isVisible ? "translate-y-0 opacity-100" : "translate-y-2 opacity-0"
       } ${action_url ? "cursor-pointer" : ""}`}
       onClick={action_url ? handleClick : undefined}
-      style={style}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
     >
       <div className="flex items-start">
         <div className="flex-shrink-0">{getIcon()}</div>
         <div className="ml-3 w-0 flex-1">
           <p className="text-sm font-medium text-gray-900">{title}</p>
           <p className="mt-1 text-sm text-gray-500">{message}</p>
+          <p className="mt-1 text-xs text-gray-400">{formatDistanceToNow(new Date(created_at), { addSuffix: true })}</p>
         </div>
         <button
           type="button"
           className="ml-4 flex-shrink-0 rounded-md text-gray-400 hover:text-gray-500 focus:outline-none"
-          onClick={(e) => {
-            e.stopPropagation()
-            onClose()
-          }}
+          onClick={handleCloseClick}
         >
           <span className="sr-only">Close</span>
           <X className="h-5 w-5" />
@@ -101,12 +140,13 @@ function Toast({ id, title, message, type, action_url, onClose, style }: ToastPr
 }
 
 export default function ToastNotification() {
-  const { realtimeNotifications, clearRealtimeNotification } = useNotifications()
+  const { realtimeNotifications, clearRealtimeNotification, markAsRead } = useNotifications()
   const [visibleNotifications, setVisibleNotifications] = useState<Record<string, boolean>>({})
 
+  // When new notifications arrive, mark them as visible
   useEffect(() => {
-    // When new notifications arrive, mark them as visible
-    realtimeNotifications.forEach((notification: { id: string | number }) => {
+    console.log("Real-time notifications updated:", realtimeNotifications)
+    realtimeNotifications.forEach((notification) => {
       if (!visibleNotifications[notification.id]) {
         setVisibleNotifications((prev) => ({
           ...prev,
@@ -128,9 +168,13 @@ export default function ToastNotification() {
     }, 300)
   }
 
+  const handleRead = async (id: string) => {
+    await markAsRead(id)
+  }
+
   // Only show up to 3 most recent notifications
   const notificationsToShow = realtimeNotifications
-    .filter((notification: { id: string | number }) => visibleNotifications[notification.id])
+    .filter((notification) => visibleNotifications[notification.id])
     .slice(0, 3)
 
   if (notificationsToShow.length === 0) {
@@ -139,16 +183,17 @@ export default function ToastNotification() {
 
   return (
     <div className="fixed bottom-4 right-4 z-50 flex flex-col gap-2">
-      {notificationsToShow.map((notification, index: number) => (
+      {notificationsToShow.map((notification, index) => (
         <Toast
           key={notification.id}
-          id={notification.id as string}
+          id={notification.id}
           title={notification.title}
           message={notification.message}
           type={notification.type}
           action_url={notification.action_url}
-          onClose={() => handleClose(notification.id as string)}
-          style={{ zIndex: 50 - index }} // Stack notifications with proper z-index
+          created_at={notification.created_at}
+          onClose={() => handleClose(notification.id)}
+          onRead={() => handleRead(notification.id)}
         />
       ))}
     </div>
