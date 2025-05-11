@@ -73,7 +73,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
     const supabase = getSupabaseBrowserClient()
 
     const channel = supabase
-      .channel("notifications")
+      .channel(`notifications:${userId}`)
       .on(
         "postgres_changes",
         {
@@ -84,8 +84,44 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
         },
         (payload) => {
           const newNotification = payload.new as Notification
-          setRealtimeNotifications((prev) => [...prev, newNotification])
+
+          // Add to real-time notifications for toast display
+          setRealtimeNotifications((prev) => [newNotification, ...prev])
+
+          // Also add to regular notifications list
+          setNotifications((prev) => [newNotification, ...prev])
+
+          // Update unread count
           setUnreadCount((prev) => prev + 1)
+
+          // Play notification sound if available
+          try {
+            const audio = new Audio("/notification-sound.mp3")
+            audio.volume = 0.5
+            audio.play().catch((e) => console.log("Audio play prevented by browser policy"))
+          } catch (e) {
+            // Ignore errors with audio
+          }
+        },
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "notifications",
+          filter: `user_id=eq.${userId}`,
+        },
+        (payload) => {
+          const updatedNotification = payload.new as Notification
+
+          // Update in notifications list
+          setNotifications((prev) => prev.map((n) => (n.id === updatedNotification.id ? updatedNotification : n)))
+
+          // If marked as read, update unread count
+          if (updatedNotification.is_read) {
+            setUnreadCount((prev) => Math.max(0, prev - 1))
+          }
         },
       )
       .subscribe()
@@ -116,7 +152,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
         .select("*")
         .eq("user_id", userId)
         .order("created_at", { ascending: false })
-        .limit(10)
+        .limit(20)
 
       if (data) {
         setNotifications(data)

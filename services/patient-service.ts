@@ -322,6 +322,29 @@ export async function savePatient(patientData: any) {
     const { data, error } = await supabase.from("patients").upsert(patientData).select().single()
 
     if (error) throw error
+    // Log activity
+    try {
+      const action = existingPatient ? "update_patient" : "create_patient"
+      const details = existingPatient
+        ? `Updated patient information for ${patientData.name || patientData.id}`
+        : `Created new patient: ${patientData.name || patientData.id}`
+
+      await supabase.from("user_activities").insert({
+        user_id: patientData.updated_by || patientData.created_by,
+        action: action,
+        details: details,
+        resource_type: "patient",
+        resource_id: data.id,
+        metadata: {
+          patient_name: patientData.name,
+          hospital_id: patientData.hospital_id,
+          is_new: !existingPatient,
+        },
+        created_at: new Date().toISOString(),
+      })
+    } catch (e) {
+      console.error("Error logging patient activity:", e)
+    }
 
     return { patient: data, error: null }
   } catch (error) {
@@ -344,6 +367,24 @@ export async function addPatientVisit(visitData: any) {
     const { data, error } = await supabase.from("patient_visits").insert(visitData).select().single()
 
     if (error) throw error
+    // Log activity
+    try {
+      await supabase.from("user_activities").insert({
+        user_id: visitData.created_by,
+        action: "create_patient_visit",
+        details: `Created new visit for patient`,
+        resource_type: "patient_visit",
+        resource_id: data.id,
+        metadata: {
+          patient_id: visitData.patient_id,
+          visit_reason: visitData.reason,
+          visit_date: visitData.visit_date,
+        },
+        created_at: new Date().toISOString(),
+      })
+    } catch (e) {
+      console.error("Error logging patient visit activity:", e)
+    }
 
     return { visit: data, error: null }
   } catch (error) {
@@ -528,6 +569,23 @@ export async function addPatientModification(modificationData: any) {
       .single()
 
     if (error) throw error
+    // Log activity
+    try {
+      await supabase.from("user_activities").insert({
+        user_id: modificationData.user_id,
+        action: "modify_patient_record",
+        details: `Modified patient record: ${Object.keys(modificationData.changes).join(", ")}`,
+        resource_type: "patient",
+        resource_id: modificationData.patient_id,
+        metadata: {
+          changes: modificationData.changes,
+          hospital_id: modificationData.hospital_id,
+        },
+        created_at: new Date().toISOString(),
+      })
+    } catch (e) {
+      console.error("Error logging patient modification activity:", e)
+    }
 
     return { modification: data, error: null }
   } catch (error) {

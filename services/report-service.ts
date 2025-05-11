@@ -36,6 +36,24 @@ export async function createReport(report: ReportInsert) {
     const { data, error } = await supabase.from("clinical_reports").insert(report).select().single()
 
     if (error) throw error
+    // Log activity
+    try {
+      await supabase.from("user_activities").insert({
+        user_id: report.created_by,
+        action: "create_report",
+        details: `Created new ${report.report_type} report: ${report.title}`,
+        resource_type: "clinical_report",
+        resource_id: data.id,
+        metadata: {
+          report_type: report.report_type,
+          patient_id: report.patient_id,
+          hospital_id: report.hospital_id,
+        },
+        created_at: new Date().toISOString(),
+      })
+    } catch (e) {
+      console.error("Error logging report creation activity:", e)
+    }
 
     revalidatePath("/reports")
     return { report: data, error: null }
@@ -235,6 +253,24 @@ export async function updateReport(id: string, update: ReportUpdate) {
     const { data, error } = await supabase.from("clinical_reports").update(update).eq("id", id).select().single()
 
     if (error) throw error
+    // Log activity
+    try {
+      await supabase.from("user_activities").insert({
+        user_id: data.created_by,
+        action: "update_report",
+        details: `Updated new ${data.report_type} report: ${data.title}`,
+        resource_type: "clinical_report",
+        resource_id: data.id,
+        metadata: {
+          report_type: data.report_type,
+          patient_id: data.patient_id,
+          hospital_id: data.hospital_id,
+        },
+        created_at: new Date().toISOString(),
+      })
+    } catch (e) {
+      console.error("Error logging report creation activity:", e)
+    }
 
     revalidatePath(`/reports/${id}`)
     revalidatePath("/reports")
@@ -309,6 +345,43 @@ export async function shareReport(shareData: ReportShareInsert) {
         .single()
 
       if (error) throw error
+      // Log activity
+    try {
+      await supabase.from("user_activities").insert({
+        user_id: shareData.shared_by,
+        action: "share_report",
+        details: `Shared clinical report with another user`,
+        resource_type: "clinical_report",
+        resource_id: shareData.report_id,
+        metadata: {
+          shared_with: shareData.shared_with,
+          can_edit: shareData.can_edit,
+        },
+        created_at: new Date().toISOString(),
+      })
+    } catch (e) {
+      console.error("Error logging report sharing activity:", e)
+    }
+    // Create notification for assigned lab technician if one is assigned
+    if (shareData.shared_with) {
+      try {
+        await supabase.from("notifications").insert({
+          user_id: shareData.shared_with,
+          title: "Report Shared",
+          message: `A report has been shared with you.`,
+          type: "lab_result",
+          action_url: `/reports/${data.id}`,
+          is_read: false,
+          metadata: {
+          shared_with: shareData.shared_with,
+          can_edit: shareData.can_edit,
+        },
+          created_at: new Date().toISOString(),
+        })
+      } catch (e) {
+        console.error("Error creating lab request notification:", e)
+      }
+    }
 
       revalidatePath(`/reports/${shareData.report_id}`)
       return { share: data, error: null }
@@ -400,6 +473,82 @@ export async function addReportComment(reportId: string, userId: string, comment
       .single()
 
     if (error) throw error
+    // Log activity
+    try {
+      await supabase.from("user_activities").insert({
+        user_id: userId,
+        action: "add_report_comment",
+        details: `Added comment to report`,
+        resource_type: "report_comment",
+        resource_id: data.id,
+        metadata: {
+          report_id: reportId,
+        },
+        created_at: new Date().toISOString(),
+      })
+    } catch (e) {
+      console.error("Error logging report comment activity:", e)
+    }
+
+    // Get report details and owner
+    const { data: reportDetails } = await supabase
+      .from("clinical_reports")
+      .select("created_by, title")
+      .eq("id", reportId)
+      .single()
+
+    // Notify report owner if the commenter is not the owner
+    if (reportDetails && reportDetails.created_by !== userId) {
+      try {
+        await supabase.from("notifications").insert({
+          user_id: reportDetails.created_by,
+          title: "New Comment on Your Report",
+          message: `Someone has commented on your report: "${reportDetails.title}".`,
+          type: "diagnosis",
+          action_url: `/reports/${reportId}`,
+          is_read: false,
+          metadata: {
+            report_id: reportId,
+            comment_id: data.id,
+            commenter_id: userId,
+          },
+          created_at: new Date().toISOString(),
+        })
+      } catch (e) {
+        console.error("Error creating report comment notification:", e)
+      }
+    }
+
+    // Get all users who have commented on this report (except the current commenter)
+    const { data: commenters } = await supabase
+      .from("report_comments")
+      .select("user_id")
+      .eq("report_id", reportId)
+      .neq("user_id", userId)
+
+    // Notify other commenters
+    if (commenters && commenters.length > 0) {
+      try {
+        const notifications = commenters.map((commenter) => ({
+          user_id: commenter.user_id,
+          title: "New Comment on a Report",
+          message: `A new comment has been added to a report you've commented on.`,
+          type: "diagnosis",
+          action_url: `/reports/${reportId}`,
+          is_read: false,
+          metadata: {
+            report_id: reportId,
+            comment_id: data.id,
+            commenter_id: userId,
+          },
+          created_at: new Date().toISOString(),
+        }))
+
+        await supabase.from("notifications").insert(notifications)
+      } catch (e) {
+        console.error("Error creating report comment notifications for other commenters:", e)
+      }
+    }
 
     revalidatePath(`/reports/${reportId}`)
     return { comment: data, error: null }

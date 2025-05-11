@@ -105,6 +105,24 @@ export async function createRadiologyStudy(studyData: any) {
       .single()
 
     if (error) throw error
+    // Log activity
+    try {
+      await supabase.from("user_activities").insert({
+        user_id: studyData.created_by,
+        action: "create_radiology_study",
+        details: `Created new ${studyData.modality} radiology study: ${studyData.study_description}`,
+        resource_type: "radiology_study",
+        resource_id: data.id,
+        metadata: {
+          patient_id: studyData.patient_id,
+          modality: studyData.modality,
+          study_date: studyData.study_date,
+        },
+        created_at: new Date().toISOString(),
+      })
+    } catch (e) {
+      console.error("Error logging radiology study creation activity:", e)
+    }
 
     revalidatePath("/radiology")
     return { study: data, error: null }
@@ -133,6 +151,24 @@ export async function updateRadiologyStudy(id: string, updateData: Partial<Radio
       .single()
 
     if (error) throw error
+    // Log activity
+    try {
+      await supabase.from("user_activities").insert({
+        user_id: data.created_by,
+        action: "update_radiology_study",
+        details: `Update new ${data.modality} radiology study: ${data.study_description}`,
+        resource_type: "radiology_study",
+        resource_id: data.id,
+        metadata: {
+          patient_id: data.patient_id,
+          modality: data.modality,
+          study_date: data.study_date,
+        },
+        created_at: new Date().toISOString(),
+      })
+    } catch (e) {
+      console.error("Error logging radiology study creation activity:", e)
+    }
 
     revalidatePath(`/radiology/${id}`)
     revalidatePath("/radiology")
@@ -326,12 +362,54 @@ export async function saveRadiologyReport(
         .single()
   
       if (error) throw error
-  
-      // Send email notification if requested
-      if (shareData.notify_by_email) {
-        // In a real app, implement email notification here
+      // Log activity
+    try {
+      await supabase.from("user_activities").insert({
+        user_id: shareData.shared_by,
+        action: "share_radiology_study",
+        details: `Shared radiology study with another user`,
+        resource_type: "radiology_study",
+        resource_id: shareData.study_id,
+        metadata: {
+          shared_with: shareData.shared_with,
+          can_edit: shareData.can_edit,
+          message: shareData.message,
+        },
+        created_at: new Date().toISOString(),
+      })
+    } catch (e) {
+      console.error("Error logging radiology study sharing activity:", e)
+    }
+
+    // Get study details for the notification
+    const { data: studyDetails } = await supabase
+      .from("radiology_studies")
+      .select("modality, study_description, patient_name")
+      .eq("id", shareData.study_id)
+      .single()
+
+    // Create notification for the recipient
+    if (studyDetails) {
+      try {
+        await supabase.from("notifications").insert({
+          user_id: shareData.shared_with,
+          title: "Radiology Study Shared With You",
+          message: `A ${studyDetails.modality} study for patient ${studyDetails.patient_name} has been shared with you${shareData.message ? ": " + shareData.message : ""}.`,
+          type: "diagnosis",
+          action_url: `/radiology/${shareData.study_id}`,
+          is_read: false,
+          metadata: {
+            study_id: shareData.study_id,
+            modality: studyDetails.modality,
+            shared_by: shareData.shared_by,
+            can_edit: shareData.can_edit,
+          },
+          created_at: new Date().toISOString(),
+        })
+      } catch (e) {
+        console.error("Error creating radiology study sharing notification:", e)
       }
-  
+    }
       revalidatePath(`/radiology/${shareData.study_id}`)
       revalidatePath("/radiology/shared")
       return { share: data, error: null }
@@ -448,6 +526,23 @@ export async function saveRadiologyReport(
         .single()
   
       if (error) throw error
+      try {
+      await supabase.from("user_activities").insert({
+        user_id: data.shared_by,
+        action: "request_radiology_study",
+        details: `Requested radiology study ${data.study_type} with another user`,
+        resource_type: "radiology_study",
+        resource_id: data.study_id,
+        metadata: {
+          shared_with: data.shared_with,
+          can_edit: data.can_edit,
+          message: data.message,
+        },
+        created_at: new Date().toISOString(),
+      })
+    } catch (e) {
+      console.error("Error logging radiology study sharing activity:", e)
+    }
   
       revalidatePath("/radiology/shared")
       return { request: data, error: null }
@@ -623,6 +718,23 @@ export async function saveRadiologyReport(
         .single()
   
       if (error) throw error
+      try {
+      await supabase.from("user_activities").insert({
+        user_id: data.shared_by,
+        action: "complete_radiology_request",
+        details: `Marked radiology request as completed`,
+        resource_type: "radiology_request",
+        resource_id: data.study_id,
+        metadata: {
+          shared_with: data.shared_with,
+          can_edit: data.can_edit,
+          message: data.message,
+        },
+        created_at: new Date().toISOString(),
+      })
+    } catch (e) {
+      console.error("Error logging radiology study sharing activity:", e)
+    }
   
       revalidatePath("/radiology/requests")
       revalidatePath("/radiology/shared")

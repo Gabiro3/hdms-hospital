@@ -31,21 +31,28 @@ interface NotificationDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   userId: string
+  onNotificationRead?: () => void
+  onMarkAllRead?: () => void
 }
 
-export interface Notification {
-    id?: string
-    user_id: string
-    title: string
-    message: string
-    type: "info" | "success" | "warning" | "error" | "system" | "lab_result" | "diagnosis" | "patient"
-    is_read?: boolean
-    created_at?: string
-    metadata?: Record<string, any>
-    action_url?: string
-  }
-  
-export default function NotificationDialog({ open, onOpenChange, userId }: NotificationDialogProps) {
+interface Notification {
+  id?: string
+  title: string
+  message: string
+  type: "info" | "success" | "warning" | "error" | "system" | "lab_result" | "diagnosis" | "patient"
+  is_read?: boolean
+  created_at?: string
+  action_url?: string
+  metadata?: Record<string, any>
+}
+
+export default function NotificationDialog({
+  open,
+  onOpenChange,
+  userId,
+  onNotificationRead,
+  onMarkAllRead,
+}: NotificationDialogProps) {
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState("all")
@@ -88,6 +95,9 @@ export default function NotificationDialog({ open, onOpenChange, userId }: Notif
       await markAllNotificationsAsRead(userId)
       setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })))
       setUnreadCount(0)
+      if (onMarkAllRead) {
+        onMarkAllRead()
+      }
     } catch (error) {
       console.error("Error marking all notifications as read:", error)
     }
@@ -97,9 +107,12 @@ export default function NotificationDialog({ open, onOpenChange, userId }: Notif
     // Mark as read if not already
     if (!notification.is_read) {
       try {
-        await markNotificationAsRead(notification.id || "")
+        await markNotificationAsRead(notification.id || '')
         setNotifications((prev) => prev.map((n) => (n.id === notification.id ? { ...n, is_read: true } : n)))
         setUnreadCount((prev) => Math.max(0, prev - 1))
+        if (onNotificationRead) {
+          onNotificationRead()
+        }
       } catch (error) {
         console.error("Error marking notification as read:", error)
       }
@@ -134,6 +147,7 @@ export default function NotificationDialog({ open, onOpenChange, userId }: Notif
         return <Bell className="h-5 w-5 text-gray-500" />
     }
   }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[500px] max-h-[85vh] flex flex-col">
@@ -213,7 +227,7 @@ export default function NotificationDialog({ open, onOpenChange, userId }: Notif
                         <p className="text-sm text-gray-700 mt-1">{notification.message}</p>
                         <div className="flex items-center mt-2 text-xs text-gray-500">
                           <Clock className="h-3 w-3 mr-1" />
-                          {notification.created_at ? formatDistanceToNow(new Date(notification.created_at), { addSuffix: true }) : "Unknown time"}
+                          {formatDistanceToNow(new Date(notification.created_at || ''), { addSuffix: true })}
 
                           {notification.is_read && (
                             <span className="flex items-center ml-3">

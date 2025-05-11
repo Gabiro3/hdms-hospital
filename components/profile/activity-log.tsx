@@ -8,14 +8,33 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
-import { Loader2, Search, Calendar, Filter, Download } from "lucide-react"
-import { format } from "date-fns"
+import { Loader2, Search, Calendar, Filter, Download, FileBarChart2, FileEdit, FileText, ImageIcon, LayoutDashboard, RefreshCw, Settings, Stethoscope, User, Lock, FlaskConical } from "lucide-react"
+import { endOfDay, format, parseISO, startOfDay } from "date-fns"
 import { getUserActivities } from "@/services/activity-service"
 import { toast } from "@/components/ui/use-toast"
 
 interface ActivityLogProps {
   userId: string
 }
+type ActivityType =
+  | "login"
+  | "logout"
+  | "view_patient"
+  | "edit_patient"
+  | "create_diagnosis"
+  | "view_diagnosis"
+  | "edit_diagnosis"
+  | "create_report"
+  | "view_report"
+  | "edit_report"
+  | "system_update"
+  | "settings_change"
+  | "create_lab_request"
+  | "view_lab_result"
+  | "create_lab_result"
+  | "create_radiology_study"
+  | "view_radiology_study"
+  | "share_radiology_study"
 
 interface Activity {
   id: string
@@ -102,6 +121,88 @@ export default function ActivityLog({ userId }: ActivityLogProps) {
     }
   }
 
+
+  const getResourceTypeBadge = (type: string) => {
+    switch (type) {
+      case "PATIENT":
+        return (
+          <Badge variant="secondary" className="bg-blue-100 text-blue-800 hover:bg-blue-200">
+            Patient
+          </Badge>
+        )
+      case "DIAGNOSIS":
+        return (
+          <Badge variant="secondary" className="bg-purple-100 text-purple-800 hover:bg-purple-200">
+            Diagnosis
+          </Badge>
+        )
+      case "LAB_REQUEST":
+        return (
+          <Badge variant="secondary" className="bg-indigo-100 text-indigo-800 hover:bg-indigo-200">
+            Lab Request
+          </Badge>
+        )
+      case "LAB_RESULT":
+        return (
+          <Badge variant="secondary" className="bg-cyan-100 text-cyan-800 hover:bg-cyan-200">
+            Lab Result
+          </Badge>
+        )
+      case "RADIOLOGY":
+        return (
+          <Badge variant="secondary" className="bg-rose-100 text-rose-800 hover:bg-rose-200">
+            Radiology
+          </Badge>
+        )
+      case "REPORT":
+        return (
+          <Badge variant="secondary" className="bg-amber-100 text-amber-800 hover:bg-amber-200">
+            Report
+          </Badge>
+        )
+      case "USER":
+        return (
+          <Badge variant="secondary" className="bg-green-100 text-green-800 hover:bg-green-200">
+            User
+          </Badge>
+        )
+      case "SYSTEM":
+        return (
+          <Badge variant="secondary" className="bg-gray-100 text-gray-800 hover:bg-gray-200">
+            System
+          </Badge>
+        )
+      default:
+        return (
+          <Badge variant="secondary" className="bg-gray-100 text-gray-800">
+            {type}
+          </Badge>
+        )
+    }
+  }
+
+
+  const activityTypeOptions = [
+    { id: "login", label: "Login" },
+    { id: "logout", label: "Logout" },
+    { id: "view_patient", label: "View Patient" },
+    { id: "edit_patient", label: "Edit Patient" },
+    { id: "create_diagnosis", label: "Create Diagnosis" },
+    { id: "view_diagnosis", label: "View Diagnosis" },
+    { id: "edit_diagnosis", label: "Edit Diagnosis" },
+    { id: "create_lab_request", label: "Create Lab Request" },
+    { id: "view_lab_result", label: "View Lab Result" },
+    { id: "create_lab_result", label: "Create Lab Result" },
+    { id: "create_radiology_study", label: "Create Radiology Study" },
+    { id: "view_radiology_study", label: "View Radiology Study" },
+    { id: "share_radiology_study", label: "Share Radiology Study" },
+    { id: "create_report", label: "Create Report" },
+    { id: "view_report", label: "View Report" },
+    { id: "edit_report", label: "Edit Report" },
+    { id: "system_update", label: "System Update" },
+    { id: "settings_change", label: "Settings Change" },
+  ]
+
   const handleSearch = () => {
     if (!searchTerm.trim()) {
       fetchActivities(true)
@@ -155,6 +256,7 @@ export default function ActivityLog({ userId }: ActivityLogProps) {
         return "text-gray-600"
     }
   }
+  
 
   const exportActivities = () => {
     // Create CSV content
@@ -307,7 +409,67 @@ export default function ActivityLog({ userId }: ActivityLogProps) {
             </TabsContent>
 
             <TabsContent value="login" className="space-y-4">
-              {/* Same table structure as above, filtered for login activities */}
+              <div className="rounded-md border">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Date & Time</TableHead>
+                      <TableHead>Action</TableHead>
+                      <TableHead className="hidden md:table-cell">Resource</TableHead>
+                      <TableHead>Details</TableHead>
+                      <TableHead className="hidden lg:table-cell">IP Address</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {activities.length === 0 && !loading ? (
+                      <TableRow>
+                        <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                          No activities found
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      activities
+                      .filter((activity) => activity.resource_type === 'auth')
+                      .map((activity) => (
+                        <TableRow key={activity.id}>
+                          <TableCell className="whitespace-nowrap">
+                            {format(new Date(activity.created_at), "MMM d, yyyy")}
+                            <div className="text-xs text-muted-foreground">
+                              {format(new Date(activity.created_at), "h:mm a")}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant={getActionBadgeVariant(activity.action)}>{activity.action}</Badge>
+                          </TableCell>
+                          <TableCell className={`hidden md:table-cell ${getResourceTypeColor(activity.resource_type)}`}>
+                            {activity.resource_type}
+                          </TableCell>
+                          <TableCell className="max-w-[200px] truncate" title={activity.details}>
+                            {activity.details}
+                          </TableCell>
+                          <TableCell className="hidden lg:table-cell text-muted-foreground">
+                            {activity.ip_address}
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+
+              {loading && (
+                <div className="flex justify-center py-4">
+                  <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                </div>
+              )}
+
+              {hasMore && !loading && (
+                <div className="flex justify-center">
+                  <Button variant="outline" onClick={() => setPage((p) => p + 1)}>
+                    Load More
+                  </Button>
+                </div>
+              )}
             </TabsContent>
 
             <TabsContent value="data" className="space-y-4">

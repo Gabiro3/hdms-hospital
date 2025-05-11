@@ -243,6 +243,56 @@ export async function createLabResult(result: LabResultInsert, files?: File[]) {
     const { data, error } = await supabase.from("lab_results").insert(result).select().single()
 
     if (error) throw error
+    // Log activity
+    try {
+      await supabase.from("user_activities").insert({
+        user_id: result.created_by,
+        action: "create_lab_result",
+        details: `Created lab result: ${result.result_type}`,
+        resource_type: "lab_result",
+        resource_id: data.id,
+        metadata: {
+          patient_id: result.patient_id,
+          result_type: result.result_type,
+          request_id: result.request_id,
+        },
+        created_at: new Date().toISOString(),
+      })
+    } catch (e) {
+      console.error("Error logging lab result creation activity:", e)
+    }
+
+    // If this is for a request, notify the requesting doctor
+    if (result.request_id) {
+      try {
+        // Get request details
+        const { data: requestDetails } = await supabase
+          .from("lab_requests")
+          .select("requested_by, test_type, patients(name)")
+          .eq("id", result.request_id)
+          .single()
+
+        if (requestDetails && requestDetails.requested_by) {
+          await supabase.from("notifications").insert({
+            user_id: requestDetails.requested_by,
+            title: "Lab Results Ready",
+            message: `Results for the ${requestDetails.test_type} lab test for patient ${requestDetails.patients || "Unknown"} are now available.`,
+            type: "lab_result",
+            action_url: `/lab/${data.id}`,
+            is_read: false,
+            metadata: {
+              result_id: data.id,
+              result_type: result.result_type,
+              patient_id: result.patient_id,
+              request_id: result.request_id,
+            },
+            created_at: new Date().toISOString(),
+          })
+        }
+      } catch (e) {
+        console.error("Error creating lab result completion notification:", e)
+      }
+    }
 
     // If this result is for a request, update the request status
     if (result.request_id) {
@@ -312,6 +362,23 @@ export async function updateLabResult(id: string, update: LabResultUpdate, newFi
     const { data, error } = await supabase.from("lab_results").update(update).eq("id", id).select().single()
 
     if (error) throw error
+    try {
+      await supabase.from("user_activities").insert({
+        user_id: update.created_by,
+        action: "update_lab_result",
+        details: `Updated lab result: ${update.result_type}`,
+        resource_type: "lab_result",
+        resource_id: data.id,
+        metadata: {
+          patient_id: update.patient_id,
+          result_type: update.result_type,
+          request_id: update.request_id,
+        },
+        created_at: new Date().toISOString(),
+      })
+    } catch (e) {
+      console.error("Error logging lab result activity:", e)
+    }
 
     revalidatePath(`/lab/${id}`)
     revalidatePath("/lab")
@@ -334,7 +401,7 @@ export async function deleteLabResult(id: string) {
     const supabase = createServerSupabaseClient()
 
     // Get patient_id for path revalidation
-    const { data: result } = await supabase.from("lab_results").select("patient_id").eq("id", id).single()
+    const { data: result } = await supabase.from("lab_results").select("patient_id, created_by, result_type, request_id").eq("id", id).single()
 
     // First delete shares
     const { error: sharesError } = await supabase.from("lab_result_shares").delete().eq("result_id", id)
@@ -347,6 +414,19 @@ export async function deleteLabResult(id: string) {
     const { error } = await supabase.from("lab_results").delete().eq("id", id)
 
     if (error) throw error
+    try {
+      await supabase.from("user_activities").insert({
+        user_id: result?.created_by,
+        action: "delete_lab_result",
+        details: `Deleted lab result: ${result?.result_type}`,
+        resource_type: "lab_result",
+        resource_id: id,
+        metadata: {},
+        created_at: new Date().toISOString(),
+      })
+    } catch (e) {
+      console.error("Error logging lab result activity:", e)
+    }
 
     revalidatePath("/lab")
     if (result?.patient_id) {
@@ -388,6 +468,51 @@ export async function shareLabResult(resultId: string, sharedBy: string, sharedW
         .single()
 
       if (error) throw error
+      // Log activity
+    try {
+      await supabase.from("user_activities").insert({
+        user_id: sharedBy,
+        action: "share_lab_result",
+        details: `Shared lab result with another user`,
+        resource_type: "lab_result",
+        resource_id: resultId,
+        metadata: {
+          shared_with: sharedWith,
+        },
+        created_at: new Date().toISOString(),
+      })
+    } catch (e) {
+      console.error("Error logging lab result sharing activity:", e)
+    }
+    // Get lab result details for the notification
+    const { data: resultDetails } = await supabase
+      .from("lab_results")
+      .select("result_type, patient_id, patients(name)")
+      .eq("id", resultId)
+      .single()
+
+    // Create notification for the recipient
+    if (resultDetails) {
+      try {
+        await supabase.from("notifications").insert({
+          user_id: sharedWith,
+          title: "Lab Result Shared With You",
+          message: `A ${resultDetails.result_type} lab result for patient ${resultDetails.patients || "Unknown"} has been shared with you.`,
+          type: "lab_result",
+          action_url: `/lab/${resultId}`,
+          is_read: false,
+          metadata: {
+            result_id: resultId,
+            result_type: resultDetails.result_type,
+            patient_id: resultDetails.patient_id,
+            shared_by: sharedBy,
+          },
+          created_at: new Date().toISOString(),
+        })
+      } catch (e) {
+        console.error("Error creating lab result sharing notification:", e)
+      }
+    }
 
       revalidatePath(`/lab/${resultId}`)
       return { share: data, error: null }
@@ -493,6 +618,47 @@ export async function createLabRequest(request: LabRequestInsert) {
     const { data, error } = await supabase.from("lab_requests").insert(request).select().single()
 
     if (error) throw error
+    // Log activity
+    try {
+      await supabase.from("user_activities").insert({
+        user_id: request.requested_by,
+        action: "create_lab_request",
+        details: `Created lab request for test: ${request.test_type}`,
+        resource_type: "lab_request",
+        resource_id: data.id,
+        metadata: {
+          patient_id: request.patient_id,
+          test_type: request.test_type,
+          priority: request.priority,
+        },
+        created_at: new Date().toISOString(),
+      })
+    } catch (e) {
+      console.error("Error logging lab request activity:", e)
+    }
+
+    // Create notification for assigned lab technician if one is assigned
+    if (request.assigned_to) {
+      try {
+        await supabase.from("notifications").insert({
+          user_id: request.assigned_to,
+          title: "New Lab Test Request",
+          message: `You have been assigned a new ${request.test_type} lab test with ${request.priority} priority.`,
+          type: "lab_result",
+          action_url: `/lab/requests/${data.id}`,
+          is_read: false,
+          metadata: {
+            request_id: data.id,
+            test_type: request.test_type,
+            priority: request.priority,
+            patient_id: request.patient_id,
+          },
+          created_at: new Date().toISOString(),
+        })
+      } catch (e) {
+        console.error("Error creating lab request notification:", e)
+      }
+    }
 
     revalidatePath("/lab")
     if (request.patient_id) {
@@ -603,12 +769,7 @@ export async function getLabRequestById(id: string) {
       results: results || [],
       error:  resultsError
     }
-
-    return {
-      request: data,
-      results: results || [],
-      error: null,
-    }
+    
   } catch (error) {
     console.error(`Error fetching lab request with ID ${id}:`, error)
     return {

@@ -1,6 +1,7 @@
 "use client"
 
 import type React from "react"
+
 import { useState, useEffect } from "react"
 import { useRouter, usePathname } from "next/navigation"
 import Link from "next/link"
@@ -15,7 +16,6 @@ import {
   LogOut,
   Menu,
   X,
-  Bell,
   Search,
   HelpCircle,
   FileBarChartIcon,
@@ -32,10 +32,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Badge } from "@/components/ui/badge"
-import NotificationDialog from "@/components/notifications/notification-dialog"
+import NotificationCenter from "@/components/notifications/notification-center"
+import ToastNotification from "@/components/notifications/toast-notification"
 import { NotificationsProvider } from "@/hooks/use-nofitications"
-import { Toaster } from "@/components/ui/toaster"
 
 interface DashboardLayoutProps {
   children: React.ReactNode
@@ -46,8 +45,6 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const [userProfile, setUserProfile] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const [notificationsOpen, setNotificationsOpen] = useState(false)
-  const [unreadCount, setUnreadCount] = useState(0)
   const router = useRouter()
   const pathname = usePathname()
   const supabase = createClientComponentClient()
@@ -63,15 +60,6 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
         // Get user profile data
         const { data } = await supabase.from("users").select("*, hospitals(name)").eq("id", user.id).single()
         setUserProfile(data)
-
-        // Get unread notification count
-        const { count } = await supabase
-          .from("notifications")
-          .select("*", { count: "exact", head: true })
-          .eq("user_id", user.id)
-          .eq("is_read", false)
-
-        setUnreadCount(count || 0)
       }
 
       setLoading(false)
@@ -82,41 +70,6 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     }
 
     getUser()
-
-    // Set up real-time subscription for notifications
-    if (user) {
-      const channel = supabase
-        .channel("notifications")
-        .on(
-          "postgres_changes",
-          {
-            event: "INSERT",
-            schema: "public",
-            table: "notifications",
-            filter: `user_id=eq.${user.id}`,
-          },
-          () => {
-            setUnreadCount((prev) => prev + 1)
-          },
-        )
-        .on(
-          "postgres_changes",
-          {
-            event: "UPDATE",
-            schema: "public",
-            table: "notifications",
-            filter: `user_id=eq.${user.id} AND is_read=eq.true`,
-          },
-          () => {
-            setUnreadCount((prev) => Math.max(0, prev - 1))
-          },
-        )
-        .subscribe()
-
-      return () => {
-        supabase.removeChannel(channel)
-      }
-    }
 
     const {
       data: { subscription },
@@ -131,7 +84,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     return () => {
       subscription.unsubscribe()
     }
-  }, [router, supabase, user])
+  }, [router, supabase])
 
   const handleSignOut = async () => {
     await supabase.auth.signOut()
@@ -213,19 +166,15 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
               <div className="px-3 py-4">
                 <div className="space-y-1">
                   {navigation.map((item) => {
-                    const isActive = pathname?.includes(item.href)
+                    const isActive = pathname.includes(item.href)
                     return (
                       <Link
                         key={item.name}
                         href={item.href}
-                        className={`group flex items-center rounded-md px-3 py-2 text-sm font-medium ${
-                          isActive ? "bg-primary/10 text-primary" : "text-gray-700 hover:bg-gray-50 hover:text-gray-900"
-                        }`}
+                        className={`sidebar-link ${isActive ? "active" : ""}`}
                         onClick={() => setSidebarOpen(false)}
                       >
-                        <item.icon
-                          className={`mr-3 h-5 w-5 flex-shrink-0 ${isActive ? "text-primary" : "text-gray-500 group-hover:text-gray-500"}`}
-                        />
+                        <item.icon className={`sidebar-icon ${isActive ? "text-primary" : ""}`} />
                         {item.name}
                       </Link>
                     )
@@ -234,7 +183,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
               </div>
               <div className="mt-auto p-4">
                 <div className="flex items-center">
-                  <Avatar className="h-14 w-14">
+                  <Avatar className="h-9 w-9">
                     <AvatarImage src="/user-profile.png" />
                     <AvatarFallback>{userProfile?.full_name ? getInitials(userProfile.full_name) : "U"}</AvatarFallback>
                   </Avatar>
@@ -272,20 +221,10 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                 <div className="px-3 py-4">
                   <div className="space-y-1">
                     {navigation.map((item) => {
-                      const isActive = pathname === item.href || pathname?.startsWith(`${item.href}/`)
+                      const isActive = pathname === item.href
                       return (
-                        <Link
-                          key={item.name}
-                          href={item.href}
-                          className={`group flex items-center rounded-md px-3 py-2 text-sm font-medium ${
-                            isActive
-                              ? "bg-primary/10 text-primary"
-                              : "text-gray-700 hover:bg-gray-50 hover:text-gray-900"
-                          }`}
-                        >
-                          <item.icon
-                            className={`mr-3 h-5 w-5 flex-shrink-0 ${isActive ? "text-primary" : "text-gray-500 group-hover:text-gray-500"}`}
-                          />
+                        <Link key={item.name} href={item.href} className={`sidebar-link ${isActive ? "active" : ""}`}>
+                          <item.icon className={`sidebar-icon ${isActive ? "text-primary" : ""}`} />
                           {item.name}
                         </Link>
                       )
@@ -294,7 +233,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                 </div>
                 <div className="mt-auto p-4">
                   <div className="flex items-center">
-                    <Avatar className="h-10 w-10">
+                    <Avatar className="h-9 w-9">
                       <AvatarImage src="/user-profile.png" />
                       <AvatarFallback>
                         {userProfile?.full_name ? getInitials(userProfile.full_name) : "U"}
@@ -350,23 +289,14 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                 </div>
               </div>
               <div className="ml-4 flex items-center md:ml-6">
-                <Button variant="ghost" size="icon" className="relative" onClick={() => setNotificationsOpen(true)}>
-                  <Bell className="h-10 w-10" />
-                  {unreadCount > 0 && (
-                    <Badge
-                      variant="destructive"
-                      className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center p-0 text-xs"
-                    >
-                      {unreadCount > 9 ? "9+" : unreadCount}
-                    </Badge>
-                  )}
-                </Button>
+                {/* Notification Center */}
+                {user && <NotificationCenter userId={user.id} />}
 
                 {/* Profile dropdown */}
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" className="relative h-8 w-8 rounded-full">
-                      <Avatar className="h-10 w-10">
+                    <Button variant="ghost" className="relative h-8 w-8 rounded-full ml-2">
+                      <Avatar className="h-8 w-8">
                         <AvatarImage src="/user-profile.png" />
                         <AvatarFallback>
                           {userProfile?.full_name ? getInitials(userProfile.full_name) : "U"}
@@ -382,9 +312,14 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                       </div>
                     </DropdownMenuLabel>
                     <DropdownMenuSeparator />
-                    <DropdownMenuItem asChild>
+                    <DropdownMenuItem>
                       <Link href="/profile" className="flex w-full">
                         Profile
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem>
+                      <Link href="/settings" className="flex w-full">
+                        Settings
                       </Link>
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
@@ -400,11 +335,10 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
 
           <main className="flex-1 overflow-y-auto bg-gray-50 p-6">{children}</main>
         </div>
-
-        {/* Notification Dialog */}
-        {user && <NotificationDialog open={notificationsOpen} onOpenChange={setNotificationsOpen} userId={user.id} />}
       </div>
-      <Toaster />
+
+      {/* Toast notifications for real-time alerts */}
+      <ToastNotification />
     </NotificationsProvider>
   )
 }

@@ -72,7 +72,7 @@ export async function getUserActivityLogs(
 
     // Build the query
     let query = supabase
-      .from("user_activity_logs")
+      .from("user_activities")
       .select("*", { count: "exact" })
       .eq("user_id", userId)
       .order("created_at", { ascending: false })
@@ -123,7 +123,7 @@ export async function getUserActivityStats(
     const supabase = createServerSupabaseClient()
 
     // Get activity counts by type
-    const { data, error } = await supabase.from("user_activity_logs").select("activity_type").eq("user_id", userId)
+    const { data, error } = await supabase.from("user_activities").select("activity_type").eq("user_id", userId)
 
     if (error) throw error
 
@@ -164,7 +164,7 @@ export async function getHospitalRecentActivity(
 
     // Get recent activity for these users
     const { data, error } = await supabase
-      .from("user_activity_logs")
+      .from("user_activities")
       .select("*, users(full_name, role)")
       .in("user_id", userIds)
       .order("created_at", { ascending: false })

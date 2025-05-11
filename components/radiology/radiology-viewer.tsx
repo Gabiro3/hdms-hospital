@@ -390,7 +390,7 @@ export default function RadiologyViewer({ currentUser }: RadiologyViewerProps) {
           <div>
             <h1 className="text-2xl font-semibold tracking-tight">{state.study?.study_description}</h1>
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <span>Patient: {state.study?.patient_name || "Unknown"}</span>
+              <span>Patient: {`${state.study?.patient_id.slice(0, 4)}...${state.study?.patient_id.slice(-4)}`}</span>
               <span>•</span>
               <span>{format(new Date(state.study?.study_date), "PPP")}</span>
               <Badge variant="outline">{state.study?.modality}</Badge>
@@ -597,7 +597,7 @@ export default function RadiologyViewer({ currentUser }: RadiologyViewerProps) {
                     <div className="overflow-hidden">
                       <p className="font-medium text-sm truncate">{state.study?.patient_name || "Unknown"}</p>
                       <p className="text-xs text-muted-foreground truncate">
-                        ID: {`${state.study?.patient.id.slice(0, 4)}...${state.study?.patient.id.slice(-4)}`}
+                        ID: {`${state.study?.patient_id.slice(0, 4)}...${state.study?.patient_id.slice(-4)}`}
                       </p>
                     </div>
                   </div>

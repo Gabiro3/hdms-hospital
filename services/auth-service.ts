@@ -1,7 +1,7 @@
 "use server"
 
 import { createServerSupabaseClient } from "@/lib/supabase/server"
-import { cookies } from "next/headers"
+import { cookies, headers } from "next/headers"
 import { redirect } from "next/navigation"
 import { recordFailedLoginAttempt, getRecentFailedLoginAttempts, clearFailedLoginAttempts } from "./security-service"
 import { updateLastLogin, getUserByEmail } from "./user-service"
@@ -41,6 +41,22 @@ export async function signIn(formData: FormData) {
     if (data.user) {
       await updateLastLogin(data.user.id)
     }
+    // Log user login activity
+      try {
+        await supabase.from("user_activities").insert({
+          user_id: data.user.id,
+          action: "user_login",
+          details: "User logged in successfully",
+          resource_type: "auth",
+          resource_id: data.user.id,
+          ip_address: (await headers()).get("x-forwarded-for") || "unknown",
+          user_agent: (await headers()).get("user-agent") || "unknown",
+          created_at: new Date().toISOString(),
+        })
+      } catch (e) {
+        // Ignore errors in activity logging
+        console.error("Error logging login activity:", e)
+      }
 
     return { success: true }
   } catch (error) {
@@ -81,6 +97,29 @@ export async function signUp(formData: FormData) {
 
 export async function signOut() {
   const supabase = createServerSupabaseClient()
+  // Get current user before signing out
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  // Log user logout activity if user exists
+  if (user) {
+    try {
+      await supabase.from("user_activities").insert({
+        user_id: user.id,
+        action: "user_logout",
+        details: "User logged out",
+        resource_type: "auth",
+        resource_id: user.id,
+        ip_address: (await headers()).get("x-forwarded-for") || "unknown",
+        user_agent: (await headers()).get("user-agent") || "unknown",
+        created_at: new Date().toISOString(),
+      })
+    } catch (e) {
+      // Ignore errors in activity logging
+      console.error("Error logging logout activity:", e)
+    }
+  }
   await supabase.auth.signOut()
   ;(await cookies()).delete("supabase-auth-token")
   redirect("/login")
