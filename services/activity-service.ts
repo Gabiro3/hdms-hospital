@@ -12,7 +12,7 @@ export interface ActivityLog {
   user_id: string
   activity_type: string
   description: string
-  details?: string
+  details?: {}
   ip_address?: string
   user_agent?: string
   created_at?: string

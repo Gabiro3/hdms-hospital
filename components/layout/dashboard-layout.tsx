@@ -23,6 +23,9 @@ import {
   FileArchive,
   FlaskConical,
   ComputerIcon,
+  AmpersandsIcon,
+  Settings2Icon,
+  SettingsIcon
 } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import {
@@ -130,7 +133,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
 
       return true // all items for other roles
     })
-    .concat(userProfile?.is_hpadmin ? [{ name: "Billings", href: "/billing", icon: FileBarChartIcon }] : [])
+    .concat(userProfile?.is_hpadmin ? [{ name: "Billings", href: "/billing", icon: FileBarChartIcon }, {name: "Hospital Admin", href: "/hospital-admin", icon: SettingsIcon}] : [])
   const getInitials = (name: string) => {
     return name
       .split(" ")
