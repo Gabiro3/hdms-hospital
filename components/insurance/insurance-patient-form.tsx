@@ -1,37 +1,29 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { v4 as uuidv4 } from "uuid"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import * as z from "zod"
 import { format } from "date-fns"
-import { CalendarIcon, Loader2, PlusCircle } from "lucide-react"
+import { CalendarIcon, Loader2, PlusCircle, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
+import { Label } from "@/components/ui/label"
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
 import { savePatient } from "@/services/patient-service"
+import { createInsurancePolicy } from "@/services/insurance-service"
 import { toast } from "@/components/ui/use-toast"
-import { getAllInsurers, createInsurer } from "@/services/insurance-service"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog"
-import { Label } from "@/components/ui/label"
 import { DatePicker } from "../ui/date-picker"
 
 // Define the form schema
@@ -53,96 +45,45 @@ const patientFormSchema = z.object({
   allergies: z.string().optional(),
   chronicConditions: z.string().optional(),
 
-  // Emergency Contact
-  emergencyContactName: z.string().optional(),
-  emergencyContactPhone: z.string().optional(),
-  emergencyContactRelation: z.string().optional(),
+  // Insurance Information
+  insurerId: z.string({ required_error: "Please select an insurance provider." }),
+  policyNumber: z.string().min(5, { message: "Policy number must be at least 5 characters." }),
+  startDate: z.date({ required_error: "Start date is required." }),
+  endDate: z.date().optional(),
+  coverageType: z.string().min(2, { message: "Coverage type is required." }),
+  deductible: z.number().min(0, { message: "Deductible must be a positive number." }).optional(),
+  copay: z.number().min(0, { message: "Co-pay must be a positive number." }).optional(),
+  coverageLimit: z.number().min(0, { message: "Coverage limit must be a positive number." }).optional(),
 
   // Additional Notes
   notes: z.string().optional(),
-  insurerId: z.string().optional(),
 })
 
 type PatientFormValues = z.infer<typeof patientFormSchema> & {
-  insurerId?: string
+  coveredServices: string[]
+  exclusions: string[]
 }
 
-interface PatientFormProps {
-  hospitalId: string
+interface InsurancePatientFormProps {
+  insurers: any[]
   userId: string
-  doctorName: string
+  hospitalId: string
   existingPatient?: any
 }
 
-export default function PatientForm({ hospitalId, userId, doctorName, existingPatient }: PatientFormProps) {
+export default function InsurancePatientForm({
+  insurers,
+  userId,
+  hospitalId,
+  existingPatient,
+}: InsurancePatientFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [activeTab, setActiveTab] = useState("demographics")
+  const [coveredServices, setCoveredServices] = useState<string[]>([])
+  const [newService, setNewService] = useState("")
+  const [exclusions, setExclusions] = useState<string[]>([])
+  const [newExclusion, setNewExclusion] = useState("")
   const router = useRouter()
-  const [insurers, setInsurers] = useState<any[]>([])
-  const [isLoadingInsurers, setIsLoadingInsurers] = useState(true)
-  const [showAddInsurerDialog, setShowAddInsurerDialog] = useState(false)
-  const [newInsurerName, setNewInsurerName] = useState("")
-  const [newInsurerPhone, setNewInsurerPhone] = useState("")
-  const [isAddingInsurer, setIsAddingInsurer] = useState(false)
-
-  useEffect(() => {
-    async function fetchInsurers() {
-      setIsLoadingInsurers(true)
-      try {
-        const { insurers: insurersList } = await getAllInsurers()
-        setInsurers(insurersList || [])
-      } catch (error) {
-        console.error("Error fetching insurers:", error)
-      } finally {
-        setIsLoadingInsurers(false)
-      }
-    }
-
-    fetchInsurers()
-  }, [])
-
-  async function handleAddInsurer() {
-    if (!newInsurerName || !newInsurerPhone) {
-      toast({
-        title: "Error",
-        description: "Insurer name and phone number are required",
-        variant: "destructive",
-      })
-      return
-    }
-
-    setIsAddingInsurer(true)
-
-    try {
-      const { insurer, error } = await createInsurer({
-        name: newInsurerName,
-        contact_phone: newInsurerPhone,
-      })
-
-      if (error) throw new Error(error)
-
-      setInsurers([...insurers, insurer])
-      form.setValue("insurerId", insurer.id)
-
-      setNewInsurerName("")
-      setNewInsurerPhone("")
-      setShowAddInsurerDialog(false)
-
-      toast({
-        title: "Success",
-        description: `${insurer.name} has been added as an insurer`,
-      })
-    } catch (error) {
-      console.error("Error adding insurer:", error)
-      toast({
-        title: "Error",
-        description: "Failed to add insurer. Please try again.",
-        variant: "destructive",
-      })
-    } finally {
-      setIsAddingInsurer(false)
-    }
-  }
 
   // Default values for the form
   const defaultValues: Partial<PatientFormValues> = {
@@ -157,11 +98,13 @@ export default function PatientForm({ hospitalId, userId, doctorName, existingPa
     bloodType: existingPatient?.patient_info?.medical?.bloodType || "unknown",
     allergies: existingPatient?.patient_info?.medical?.allergies || "",
     chronicConditions: existingPatient?.patient_info?.medical?.chronicConditions || "",
-    emergencyContactName: existingPatient?.patient_info?.emergency?.name || "",
-    emergencyContactPhone: existingPatient?.patient_info?.emergency?.phone || "",
-    emergencyContactRelation: existingPatient?.patient_info?.emergency?.relation || "",
-    notes: existingPatient?.patient_info?.notes || "",
     insurerId: existingPatient?.insurer_id || "",
+    policyNumber: "",
+    startDate: new Date(),
+    coverageType: "comprehensive",
+    notes: "",
+    coveredServices: [],
+    exclusions: [],
   }
 
   // Initialize the form
@@ -182,7 +125,7 @@ export default function PatientForm({ hospitalId, userId, doctorName, existingPa
         id: patientId,
         name: data.name,
         hospital_id: hospitalId,
-        insurer_id: data.insurerId || null,
+        insurer_id: data.insurerId,
         patient_info: {
           demographics: {
             gender: data.gender,
@@ -199,14 +142,8 @@ export default function PatientForm({ hospitalId, userId, doctorName, existingPa
             allergies: data.allergies,
             chronicConditions: data.chronicConditions,
           },
-          emergency: {
-            name: data.emergencyContactName,
-            phone: data.emergencyContactPhone,
-            relation: data.emergencyContactRelation,
-          },
           notes: data.notes,
           created_by: userId,
-          created_by_name: doctorName,
         },
       }
 
@@ -217,9 +154,34 @@ export default function PatientForm({ hospitalId, userId, doctorName, existingPa
         throw new Error(error || "Failed to save patient")
       }
 
+      // Create insurance policy
+      const policyData = {
+        patient_id: patientId,
+        insurer_id: data.insurerId,
+        policy_number: data.policyNumber,
+        start_date: format(data.startDate, "yyyy-MM-dd"),
+        end_date: data.endDate ? format(data.endDate, "yyyy-MM-dd") : null,
+        coverage_details: {
+          coverageType: data.coverageType,
+          deductible: data.deductible,
+          copay: data.copay,
+          coverageLimit: data.coverageLimit,
+          coveredServices: coveredServices,
+          exclusions: exclusions,
+          notes: data.notes,
+        },
+        status: "active",
+      }
+
+      const { policy, error: policyError } = await createInsurancePolicy(policyData)
+
+      if (policyError) {
+        throw new Error(policyError)
+      }
+
       toast({
-        title: existingPatient ? "Patient Updated" : "Patient Created",
-        description: `${data.name}'s information has been ${existingPatient ? "updated" : "saved"} successfully.`,
+        title: "Patient Created",
+        description: `${data.name}'s information and insurance policy have been saved successfully.`,
       })
 
       // Redirect to patient page
@@ -259,18 +221,44 @@ export default function PatientForm({ hospitalId, userId, doctorName, existingPa
   function goToNextTab() {
     if (activeTab === "demographics") setActiveTab("contact")
     else if (activeTab === "contact") setActiveTab("medical")
-    else if (activeTab === "medical") setActiveTab("emergency")
-    else if (activeTab === "emergency") setActiveTab("insurance")
-    else if (activeTab === "insurance") setActiveTab("notes")
+    else if (activeTab === "medical") setActiveTab("insurance")
+    else if (activeTab === "insurance") setActiveTab("coverage")
+    else if (activeTab === "coverage") setActiveTab("notes")
   }
 
   // Navigate to previous tab
   function goToPreviousTab() {
-    if (activeTab === "notes") setActiveTab("insurance")
-    else if (activeTab === "insurance") setActiveTab("emergency")
-    else if (activeTab === "emergency") setActiveTab("medical")
+    if (activeTab === "notes") setActiveTab("coverage")
+    else if (activeTab === "coverage") setActiveTab("insurance")
+    else if (activeTab === "insurance") setActiveTab("medical")
     else if (activeTab === "medical") setActiveTab("contact")
     else if (activeTab === "contact") setActiveTab("demographics")
+  }
+
+  // Add covered service
+  function addCoveredService() {
+    if (newService.trim() && !coveredServices.includes(newService.trim())) {
+      setCoveredServices([...coveredServices, newService.trim()])
+      setNewService("")
+    }
+  }
+
+  // Remove covered service
+  function removeCoveredService(service: string) {
+    setCoveredServices(coveredServices.filter((s) => s !== service))
+  }
+
+  // Add exclusion
+  function addExclusion() {
+    if (newExclusion.trim() && !exclusions.includes(newExclusion.trim())) {
+      setExclusions([...exclusions, newExclusion.trim()])
+      setNewExclusion("")
+    }
+  }
+
+  // Remove exclusion
+  function removeExclusion(exclusion: string) {
+    setExclusions(exclusions.filter((e) => e !== exclusion))
   }
 
   return (
@@ -283,8 +271,8 @@ export default function PatientForm({ hospitalId, userId, doctorName, existingPa
                 <TabsTrigger value="demographics">Demographics</TabsTrigger>
                 <TabsTrigger value="contact">Contact</TabsTrigger>
                 <TabsTrigger value="medical">Medical</TabsTrigger>
-                <TabsTrigger value="emergency">Emergency</TabsTrigger>
                 <TabsTrigger value="insurance">Insurance</TabsTrigger>
+                <TabsTrigger value="coverage">Coverage</TabsTrigger>
                 <TabsTrigger value="notes">Notes</TabsTrigger>
               </TabsList>
 
@@ -341,25 +329,25 @@ export default function PatientForm({ hospitalId, userId, doctorName, existingPa
                 />
 
                 <FormField
-                  control={form.control}
-                  name="dateOfBirth"
-                  render={({ field }) => (
-                    <FormItem className="flex flex-col">
-                      <FormLabel>Date of Birth</FormLabel>
-                      <Popover>
-                        <DatePicker
-                          date={field.value}
-                          setDate={field.onChange}
-                          className="mt-1"
-                          disabled={false}
-                          placeholder="YYYY-MM-DD"
-                        />
-
-                      </Popover>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                                  control={form.control}
+                                  name="dateOfBirth"
+                                  render={({ field }) => (
+                                    <FormItem className="flex flex-col">
+                                      <FormLabel>Date of Birth</FormLabel>
+                                      <Popover>
+                                        <DatePicker
+                                          date={field.value}
+                                          setDate={field.onChange}
+                                          className="mt-1"
+                                          disabled={false}
+                                          placeholder="YYYY-MM-DD"
+                                        />
+                
+                                      </Popover>
+                                      <FormMessage />
+                                    </FormItem>
+                                  )}
+                                />
 
                 <div className="flex justify-end">
                   <Button type="button" onClick={goToNextTab}>
@@ -490,16 +478,27 @@ export default function PatientForm({ hospitalId, userId, doctorName, existingPa
                 </div>
               </TabsContent>
 
-              <TabsContent value="emergency" className="space-y-4 pt-4">
+              <TabsContent value="insurance" className="space-y-4 pt-4">
                 <FormField
                   control={form.control}
-                  name="emergencyContactName"
+                  name="insurerId"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Emergency Contact Name</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Jane Doe" {...field} />
-                      </FormControl>
+                      <FormLabel>Insurance Provider</FormLabel>
+                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select insurance provider" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {insurers.map((insurer) => (
+                            <SelectItem key={insurer.id} value={insurer.id}>
+                              {insurer.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -507,27 +506,106 @@ export default function PatientForm({ hospitalId, userId, doctorName, existingPa
 
                 <FormField
                   control={form.control}
-                  name="emergencyContactPhone"
+                  name="policyNumber"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Emergency Contact Phone</FormLabel>
+                      <FormLabel>Policy Number</FormLabel>
                       <FormControl>
-                        <Input placeholder="+250 7XX XXX XXX" {...field} />
+                        <Input placeholder="e.g. POL-12345" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
 
+                <div className="grid gap-4 grid-cols-2">
+                  <FormField
+                    control={form.control}
+                    name="startDate"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-col">
+                        <FormLabel>Start Date</FormLabel>
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <FormControl>
+                              <Button
+                                variant={"outline"}
+                                className={cn(
+                                  "w-full pl-3 text-left font-normal",
+                                  !field.value && "text-muted-foreground",
+                                )}
+                              >
+                                {field.value ? format(field.value, "PPP") : <span>Pick a date</span>}
+                                <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                              </Button>
+                            </FormControl>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-0" align="start">
+                            <Calendar selected={field.value} onSelect={field.onChange} initialFocus />
+                          </PopoverContent>
+                        </Popover>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="endDate"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-col">
+                        <FormLabel>End Date (Optional)</FormLabel>
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <FormControl>
+                              <Button
+                                variant={"outline"}
+                                className={cn(
+                                  "w-full pl-3 text-left font-normal",
+                                  !field.value && "text-muted-foreground",
+                                )}
+                              >
+                                {field.value ? format(field.value, "PPP") : <span>Pick a date</span>}
+                                <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                              </Button>
+                            </FormControl>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-0" align="start">
+                            <Calendar
+                              selected={field.value}
+                              onSelect={field.onChange}
+                              disabled={(date) => date < (form.getValues("startDate") || new Date())}
+                              initialFocus
+                            />
+                          </PopoverContent>
+                        </Popover>
+                        <FormDescription>Leave blank for lifetime or ongoing coverage</FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
                 <FormField
                   control={form.control}
-                  name="emergencyContactRelation"
+                  name="coverageType"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Relationship to Patient</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Spouse, Parent, Child, etc." {...field} />
-                      </FormControl>
+                      <FormLabel>Coverage Type</FormLabel>
+                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select coverage type" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="comprehensive">Comprehensive</SelectItem>
+                          <SelectItem value="basic">Basic</SelectItem>
+                          <SelectItem value="premium">Premium</SelectItem>
+                          <SelectItem value="catastrophic">Catastrophic</SelectItem>
+                          <SelectItem value="specialized">Specialized</SelectItem>
+                        </SelectContent>
+                      </Select>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -543,94 +621,151 @@ export default function PatientForm({ hospitalId, userId, doctorName, existingPa
                 </div>
               </TabsContent>
 
-              <TabsContent value="insurance" className="space-y-4 pt-4">
-                <FormField
-                  control={form.control}
-                  name="insurerId"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Insurance Provider</FormLabel>
-                      <div className="flex gap-2">
+              <TabsContent value="coverage" className="space-y-4 pt-4">
+                <div className="grid gap-4 grid-cols-3">
+                  <FormField
+                    control={form.control}
+                    name="deductible"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Deductible ($)</FormLabel>
                         <FormControl>
-                          <Select
-                            onValueChange={field.onChange}
-                            defaultValue={field.value}
-                            disabled={isLoadingInsurers}
-                          >
-                            <SelectTrigger className="w-full">
-                              <SelectValue placeholder="Select insurance provider" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="none">None</SelectItem>
-                              {insurers.map((insurer) => (
-                                <SelectItem key={insurer.id} value={insurer.id}>
-                                  {insurer.name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                          <Input
+                            type="number"
+                            placeholder="0.00"
+                            {...field}
+                            onChange={(e) => field.onChange(e.target.value === "" ? undefined : Number(e.target.value))}
+                          />
                         </FormControl>
-                        <Dialog open={showAddInsurerDialog} onOpenChange={setShowAddInsurerDialog}>
-                          <DialogTrigger asChild>
-                            <Button variant="outline" type="button">
-                              <PlusCircle className="h-4 w-4 mr-2" />
-                              Add New
-                            </Button>
-                          </DialogTrigger>
-                          <DialogContent>
-                            <DialogHeader>
-                              <DialogTitle>Add New Insurance Provider</DialogTitle>
-                              <DialogDescription>Enter the details of the new insurance provider.</DialogDescription>
-                            </DialogHeader>
-                            <div className="space-y-4 py-4">
-                              <div className="space-y-2">
-                                <Label htmlFor="insurerName">Provider Name</Label>
-                                <Input
-                                  id="insurerName"
-                                  value={newInsurerName}
-                                  onChange={(e) => setNewInsurerName(e.target.value)}
-                                  placeholder="Enter provider name"
-                                />
-                              </div>
-                              <div className="space-y-2">
-                                <Label htmlFor="insurerPhone">Contact Phone</Label>
-                                <Input
-                                  id="insurerPhone"
-                                  value={newInsurerPhone}
-                                  onChange={(e) => setNewInsurerPhone(e.target.value)}
-                                  placeholder="Enter contact phone number"
-                                />
-                              </div>
-                            </div>
-                            <DialogFooter>
-                              <Button
-                                variant="outline"
-                                onClick={() => setShowAddInsurerDialog(false)}
-                                disabled={isAddingInsurer}
-                              >
-                                Cancel
-                              </Button>
-                              <Button onClick={handleAddInsurer} disabled={isAddingInsurer}>
-                                {isAddingInsurer ? (
-                                  <>
-                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                    Adding...
-                                  </>
-                                ) : (
-                                  "Add Provider"
-                                )}
-                              </Button>
-                            </DialogFooter>
-                          </DialogContent>
-                        </Dialog>
-                      </div>
-                      <FormDescription>
-                        Select the patient's insurance provider or add a new one if not listed.
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="copay"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Co-pay ($)</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="number"
+                            placeholder="0.00"
+                            {...field}
+                            onChange={(e) => field.onChange(e.target.value === "" ? undefined : Number(e.target.value))}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="coverageLimit"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Coverage Limit ($)</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="number"
+                            placeholder="0.00"
+                            {...field}
+                            onChange={(e) => field.onChange(e.target.value === "" ? undefined : Number(e.target.value))}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Covered Services</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="Add a covered service"
+                      value={newService}
+                      onChange={(e) => setNewService(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault()
+                          addCoveredService()
+                        }
+                      }}
+                    />
+                    <Button type="button" onClick={addCoveredService}>
+                      <PlusCircle className="h-4 w-4 mr-2" />
+                      Add
+                    </Button>
+                  </div>
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {coveredServices.map((service, index) => (
+                      <Badge key={index} variant="secondary" className="flex items-center gap-1">
+                        {service}
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-4 w-4 p-0 ml-1"
+                          onClick={() => removeCoveredService(service)}
+                        >
+                          <X className="h-3 w-3" />
+                          <span className="sr-only">Remove</span>
+                        </Button>
+                      </Badge>
+                    ))}
+                    {coveredServices.length === 0 && (
+                      <p className="text-sm text-muted-foreground">No covered services added yet.</p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Exclusions</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="Add an exclusion"
+                      value={newExclusion}
+                      onChange={(e) => setNewExclusion(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault()
+                          addExclusion()
+                        }
+                      }}
+                    />
+                    <Button type="button" onClick={addExclusion}>
+                      <PlusCircle className="h-4 w-4 mr-2" />
+                      Add
+                    </Button>
+                  </div>
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {exclusions.map((exclusion, index) => (
+                      <Badge
+                        key={index}
+                        variant="outline"
+                        className="flex items-center gap-1 bg-red-50 text-red-700 border-red-200"
+                      >
+                        {exclusion}
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-4 w-4 p-0 ml-1"
+                          onClick={() => removeExclusion(exclusion)}
+                        >
+                          <X className="h-3 w-3" />
+                          <span className="sr-only">Remove</span>
+                        </Button>
+                      </Badge>
+                    ))}
+                    {exclusions.length === 0 && (
+                      <p className="text-sm text-muted-foreground">No exclusions added yet.</p>
+                    )}
+                  </div>
+                </div>
 
                 <div className="flex justify-between">
                   <Button type="button" variant="outline" onClick={goToPreviousTab}>
@@ -651,7 +786,7 @@ export default function PatientForm({ hospitalId, userId, doctorName, existingPa
                       <FormLabel>Additional Notes</FormLabel>
                       <FormControl>
                         <Textarea
-                          placeholder="Any additional information about the patient"
+                          placeholder="Any additional information about the patient or their insurance coverage"
                           className="min-h-[150px]"
                           {...field}
                         />
@@ -667,7 +802,7 @@ export default function PatientForm({ hospitalId, userId, doctorName, existingPa
                   </Button>
                   <Button type="submit" disabled={isSubmitting} className="ml-auto">
                     {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    {existingPatient ? "Update Patient" : "Create Patient"}
+                    Create Patient
                   </Button>
                 </div>
               </TabsContent>

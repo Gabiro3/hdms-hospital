@@ -651,6 +651,126 @@ export interface Database {
           updated_at?: string
         }
       }
+      insurers: {
+        Row: {
+          id: string
+          name: string
+          contact_phone: string
+          address: string | null
+          email: string | null
+          website: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          name: string
+          contact_phone: string
+          address?: string | null
+          email?: string | null
+          website?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          name?: string
+          contact_phone?: string
+          address?: string | null
+          email?: string | null
+          website?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      insurance_policies: {
+        Row: {
+          id: string
+          patient_id: string
+          insurer_id: string
+          policy_number: string
+          start_date: string
+          end_date: string | null
+          coverage_details: Json | null
+          status: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          patient_id: string
+          insurer_id: string
+          policy_number: string
+          start_date: string
+          end_date?: string | null
+          coverage_details?: Json | null
+          status?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          patient_id?: string
+          insurer_id?: string
+          policy_number?: string
+          start_date?: string
+          end_date?: string | null
+          coverage_details?: Json | null
+          status?: string
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      insurance_claims: {
+        Row: {
+          id: string
+          policy_id: string
+          diagnosis_id: string | null
+          visit_id: string | null
+          lab_result_id: string | null
+          radiology_study_id: string | null
+          claim_amount: number
+          approved_amount: number | null
+          status: string
+          submitted_date: string
+          processed_date: string | null
+          notes: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          policy_id: string
+          diagnosis_id?: string | null
+          visit_id?: string | null
+          lab_result_id?: string | null
+          radiology_study_id?: string | null
+          claim_amount: number
+          approved_amount?: number | null
+          status?: string
+          submitted_date: string
+          processed_date?: string | null
+          notes?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          policy_id?: string
+          diagnosis_id?: string | null
+          visit_id?: string | null
+          lab_result_id?: string | null
+          radiology_study_id?: string | null
+          claim_amount?: number
+          approved_amount?: number | null
+          status?: string
+          submitted_date?: string
+          processed_date?: string | null
+          notes?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+      }
     }
   }
 }

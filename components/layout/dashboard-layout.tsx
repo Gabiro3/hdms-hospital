@@ -25,7 +25,9 @@ import {
   ComputerIcon,
   AmpersandsIcon,
   Settings2Icon,
-  SettingsIcon
+  SettingsIcon,
+  HeartCrackIcon,
+  HeartPulseIcon
 } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import {
@@ -115,6 +117,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
     { name: "Diagnoses", href: "/diagnoses", icon: FileText },
     { name: "Patients", href: "/patients", icon: Users },
+    { name: "Insurance", href: "/insurance", icon: HeartPulseIcon },
     { name: "Radiology & Imaging", href: "/radiology", icon: ComputerIcon },
     { name: "Reports", href: "/reports", icon: FileArchive },
     { name: "Laboratory", href: "/lab", icon: FlaskConical },
@@ -129,6 +132,9 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
 
       if (userProfile?.role === "IMAGING") {
         return ["Dashboard", "Patients", "Radiology & Imaging", "Support"].includes(item.name)
+      }
+      if (userProfile?.role === "INSURANCE") {
+        return ["Dashboard","Insurance", "Support"].includes(item.name)
       }
 
       return true // all items for other roles

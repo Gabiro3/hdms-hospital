@@ -18,7 +18,6 @@ export async function getPatientById(patientId: string, hospitalId?:string) {
       .order("created_at", { ascending: false })
       .limit(1)
       .single()
-
     if (error) throw error
 
     // Construct a patient object from the diagnosis data

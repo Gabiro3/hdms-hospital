@@ -814,3 +814,258 @@ function generateReportHTML(report: any): string {
     </div>
   `
 }
+
+/**
+ * Generate a PDF from a prescription and download it
+ * @param prescription The prescription object to generate a PDF for
+ */
+export async function generatePrescriptionPDF(prescription: any): Promise<void> {
+  try {
+    // Create a temporary container for the prescription content
+    const container = document.createElement("div")
+    container.style.position = "absolute"
+    container.style.left = "-9999px"
+    container.style.top = "-9999px"
+    container.style.width = "800px" // Fixed width for better PDF quality
+    document.body.appendChild(container)
+
+    // Render the prescription content
+    container.innerHTML = generatePrescriptionHTML(prescription)
+
+    // Wait for any images to load
+    await new Promise((resolve) => setTimeout(resolve, 500))
+
+    // Create a new PDF document
+    const pdf = new jsPDF({
+      orientation: "portrait",
+      unit: "mm",
+      format: "a4",
+    })
+
+    // Convert the HTML to a canvas
+    const canvas = await html2canvas(container, {
+      scale: 2, // Higher scale for better quality
+      useCORS: true,
+      logging: false,
+      allowTaint: true,
+    })
+
+    // Add the canvas to the PDF
+    const imgData = canvas.toDataURL("image/png")
+    const pdfWidth = pdf.internal.pageSize.getWidth()
+    const pdfHeight = pdf.internal.pageSize.getHeight()
+    const imgWidth = canvas.width
+    const imgHeight = canvas.height
+    const ratio = Math.min(pdfWidth / imgWidth, pdfHeight / imgHeight)
+    const imgX = (pdfWidth - imgWidth * ratio) / 2
+    const imgY = 0
+
+    pdf.addImage(imgData, "PNG", imgX, imgY, imgWidth * ratio, imgHeight * ratio)
+
+    // If the content is too long, add more pages
+    if (imgHeight * ratio > pdfHeight) {
+      let remainingHeight = imgHeight * ratio
+      let currentPosition = pdfHeight
+
+      while (remainingHeight > pdfHeight) {
+        pdf.addPage()
+        pdf.addImage(imgData, "PNG", imgX, -currentPosition, imgWidth * ratio, imgHeight * ratio)
+        remainingHeight -= pdfHeight
+        currentPosition += pdfHeight
+      }
+    }
+
+    // Download the PDF
+    pdf.save(`Prescription-${prescription.id.substring(0, 8)}.pdf`)
+
+    // Clean up
+    document.body.removeChild(container)
+  } catch (error) {
+    console.error("Error generating PDF:", error)
+    throw new Error("Failed to generate PDF")
+  }
+}
+
+/**
+ * Generate HTML content for the prescription PDF
+ * @param prescription The prescription object
+ * @returns HTML string for the prescription
+ */
+function generatePrescriptionHTML(prescription: any): string {
+  // Format frequency for display
+  const formatFrequency = (frequency: string) => {
+    switch (frequency) {
+      case "1-0-0":
+        return "Once daily (Morning)"
+      case "0-1-0":
+        return "Once daily (Afternoon)"
+      case "0-0-1":
+        return "Once daily (Evening)"
+      case "1-0-1":
+        return "Twice daily (Morning-Evening)"
+      case "1-1-0":
+        return "Twice daily (Morning-Afternoon)"
+      case "0-1-1":
+        return "Twice daily (Afternoon-Evening)"
+      case "1-1-1":
+        return "Three times daily"
+      case "1-1-1-1":
+        return "Four times daily"
+      case "SOS":
+        return "As needed (SOS)"
+      case "other":
+        return "Other (see instructions)"
+      default:
+        return frequency
+    }
+  }
+
+  // Generate medication rows
+  let medicationRows = ""
+  if (prescription.medications && prescription.medications.length > 0) {
+    prescription.medications.forEach((medication: any, index: number) => {
+      medicationRows += `
+        <tr>
+          <td style="padding: 10px; border: 1px solid #ddd; text-align: left;">
+            <strong>${medication.name}</strong>
+            ${medication.strength ? `<br><span style="font-size: 13px;">${medication.strength}</span>` : ""}
+            ${medication.type ? `<br><span style="font-size: 13px; color: #6b7280;">${medication.type}</span>` : ""}
+          </td>
+          <td style="padding: 10px; border: 1px solid #ddd; text-align: left;">
+            ${medication.dosage || "As directed"}
+          </td>
+          <td style="padding: 10px; border: 1px solid #ddd; text-align: left;">
+            ${formatFrequency(medication.frequency)}
+          </td>
+          <td style="padding: 10px; border: 1px solid #ddd; text-align: left;">
+            ${prescription.duration} days
+            ${medication.instructions ? `<br><span style="font-size: 13px; color: #6b7280;">${medication.instructions}</span>` : ""}
+          </td>
+        </tr>
+      `
+    })
+  } else {
+    medicationRows = `
+      <tr>
+        <td colspan="4" style="padding: 10px; border: 1px solid #ddd; text-align: center;">No medications prescribed</td>
+      </tr>
+    `
+  }
+
+  // Get hospital name
+  const hospitalName = prescription.hospital?.name || "Healthlink Rwanda HDMS"
+  const hospitalAddress = prescription.hospital?.address || "KN 5 Rd, Kigali, Rwanda"
+
+  return `
+    <div style="font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px;">
+      <!-- Letterhead -->
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+        <div style="display: flex; align-items: center;">
+          <div style="background-color: #2563eb; color: white; padding: 12px; border-radius: 8px; margin-right: 12px;">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"></path>
+            </svg>
+          </div>
+          <div>
+            <h2 style="font-size: 24px; font-weight: bold; margin: 0;">PRESCRIPTION</h2>
+            <p style="color: #6b7280; margin: 0;">${hospitalName}</p>
+          </div>
+        </div>
+        <div style="text-align: right;">
+          <p style="font-weight: bold; margin: 0;">${hospitalName}</p>
+          <p style="color: #6b7280; margin: 0; font-size: 14px;">${hospitalAddress}</p>
+          <p style="color: #6b7280; margin: 0; font-size: 14px;">Rx #: ${prescription.id.substring(0, 8)}</p>
+        </div>
+      </div>
+
+      <hr style="border: 0; border-top: 1px solid #e5e7eb; margin: 20px 0;" />
+
+      <!-- Patient and Doctor Information -->
+      <div style="display: flex; justify-content: space-between; margin-bottom: 30px;">
+        <div style="width: 48%;">
+          <h3 style="font-size: 16px; margin-bottom: 10px; border-bottom: 1px solid #e5e7eb; padding-bottom: 5px;">Patient Information</h3>
+          <p style="margin: 0 0 5px 0;"><strong>Name:</strong> ${prescription.patient?.name || "Unknown Patient"}</p>
+          <p style="margin: 0 0 5px 0;"><strong>ID:</strong> ${prescription.patient_id}</p>
+          ${
+            prescription.patient?.patient_info?.demographics?.dateOfBirth
+              ? `<p style="margin: 0 0 5px 0;"><strong>Date of Birth:</strong> ${format(
+                  new Date(prescription.patient.patient_info.demographics.dateOfBirth),
+                  "MMMM d, yyyy",
+                )}</p>`
+              : ""
+          }
+          ${
+            prescription.patient?.patient_info?.demographics?.gender
+              ? `<p style="margin: 0 0 5px 0;"><strong>Gender:</strong> ${
+                  prescription.patient.patient_info.demographics.gender.charAt(0).toUpperCase() +
+                  prescription.patient.patient_info.demographics.gender.slice(1)
+                }</p>`
+              : ""
+          }
+        </div>
+        <div style="width: 48%;">
+          <h3 style="font-size: 16px; margin-bottom: 10px; border-bottom: 1px solid #e5e7eb; padding-bottom: 5px;">Prescriber Information</h3>
+          <p style="margin: 0 0 5px 0;"><strong>Doctor:</strong> ${prescription.users?.full_name || "Unknown"}</p>
+          <p style="margin: 0 0 5px 0;"><strong>Date:</strong> ${format(new Date(prescription.created_at), "MMMM d, yyyy")}</p>
+          <p style="margin: 0 0 5px 0;"><strong>Valid Until:</strong> ${format(
+            new Date(new Date(prescription.created_at).getTime() + prescription.duration * 24 * 60 * 60 * 1000),
+            "MMMM d, yyyy",
+          )}</p>
+        </div>
+      </div>
+
+      <!-- Prescription Details -->
+      <div style="margin-bottom: 30px;">
+        <h3 style="font-size: 18px; margin-bottom: 15px; border-bottom: 1px solid #e5e7eb; padding-bottom: 5px;">Prescription Details</h3>
+        
+        <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+          <thead>
+            <tr style="background-color: #f9fafb;">
+              <th style="padding: 10px; border: 1px solid #ddd; text-align: left;">Medication</th>
+              <th style="padding: 10px; border: 1px solid #ddd; text-align: left;">Dosage</th>
+              <th style="padding: 10px; border: 1px solid #ddd; text-align: left;">Frequency</th>
+              <th style="padding: 10px; border: 1px solid #ddd; text-align: left;">Duration & Instructions</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${medicationRows}
+          </tbody>
+        </table>
+
+        ${
+          prescription.notes
+            ? `
+        <div style="margin-top: 20px;">
+          <h4 style="font-size: 16px; margin-bottom: 10px;">Additional Notes</h4>
+          <p style="margin: 0; padding: 10px; border: 1px solid #e5e7eb; border-radius: 4px; background-color: #f9fafb;">${prescription.notes}</p>
+        </div>
+        `
+            : ""
+        }
+      </div>
+
+      <!-- Signature -->
+      <div style="margin-top: 40px; display: flex; justify-content: space-between;">
+        <div style="width: 45%;">
+          <div style="border-bottom: 1px solid #000; height: 40px;"></div>
+          <p style="margin: 5px 0 0 0;">Doctor's Signature</p>
+        </div>
+        <div style="width: 45%;">
+          <div style="border-bottom: 1px solid #000; height: 40px;"></div>
+          <p style="margin: 5px 0 0 0;">Date</p>
+        </div>
+      </div>
+
+      <!-- Footer -->
+      <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #e5e7eb; text-align: center;">
+        <p style="color: #6b7280; font-size: 14px; margin: 0;">
+          This prescription is valid for ${prescription.duration} days from the date of issue.
+          Please follow the dosage instructions carefully.
+        </p>
+        <p style="color: #6b7280; font-size: 14px; margin: 5px 0 0 0;">
+          For any questions or concerns, please contact ${hospitalName}.
+        </p>
+      </div>
+    </div>
+  `
+}

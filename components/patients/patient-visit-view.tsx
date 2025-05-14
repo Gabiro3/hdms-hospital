@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { ArrowLeft, Calendar, User, Activity, ClipboardList, FileText, Pill } from "lucide-react"
-import { toast } from "@/hooks/use-toast"
+import { toast } from "@/components/ui/use-toast"
 import { generateSoapNote } from "@/services/patient-service"
 
 interface PatientVisitViewProps {
@@ -76,6 +76,12 @@ export default function PatientVisitView({ patient, visit, currentUser }: Patien
             <Link href={`/patients/${patient.id}`}>
               <User className="mr-2 h-4 w-4" />
               Patient Profile
+            </Link>
+          </Button>
+          <Button variant="outline" asChild>
+            <Link href={`/patients/${patient.id}/prescriptions/new?visitId=${visit.id}`}>
+              <FileText className="mr-2 h-4 w-4" />
+              Create Prescription
             </Link>
           </Button>
           <Button onClick={handleGenerateSoapNote} disabled={isGeneratingNote}>
@@ -328,6 +334,11 @@ export default function PatientVisitView({ patient, visit, currentUser }: Patien
                 <div className="text-center py-6">
                   <Pill className="h-12 w-12 text-gray-300 mx-auto mb-3" />
                   <p className="text-muted-foreground">No medications were prescribed during this visit.</p>
+                  <Button variant="outline" className="mt-4" asChild>
+                    <Link href={`/patients/${patient.id}/prescriptions/new?visitId=${visit.id}`}>
+                      Create Prescription
+                    </Link>
+                  </Button>
                 </div>
               ) : (
                 <div className="space-y-4">
