@@ -1,6 +1,7 @@
 "use server"
 
 import { createServerSupabaseClient } from "@/lib/supabase/server"
+import { validateICN } from "@/lib/utils/security-utils"
 
 /**
  * Get a patient by ID
@@ -294,11 +295,33 @@ export async function searchPatients(hospitalId: string, query: string) {
   }
 }
 /**
+/**
  * Create or update a patient
  */
 export async function savePatient(patientData: any) {
   try {
     const supabase = createServerSupabaseClient()
+
+    // Validate ICN if provided
+    if (patientData.icn && !validateICN(patientData.icn)) {
+      return { patient: null, error: "Invalid ICN format" }
+    }
+
+    // Check if ICN is unique (if provided)
+    if (patientData.icn) {
+      const { data: existingPatient, error: checkError } = await supabase
+        .from("patients")
+        .select("id")
+        .eq("icn", patientData.icn)
+        .neq("id", patientData.id) // Exclude current patient when updating
+        .maybeSingle()
+
+      if (checkError) throw checkError
+
+      if (existingPatient) {
+        return { patient: null, error: "ICN already exists for another patient" }
+      }
+    }
 
     // Check if patient exists
     const { data: existingPatient, error: checkError } = await supabase
@@ -321,6 +344,7 @@ export async function savePatient(patientData: any) {
     const { data, error } = await supabase.from("patients").upsert(patientData).select().single()
 
     if (error) throw error
+
     // Log activity
     try {
       const action = existingPatient ? "update_patient" : "create_patient"
@@ -349,6 +373,64 @@ export async function savePatient(patientData: any) {
   } catch (error) {
     console.error("Error saving patient:", error)
     return { patient: null, error: "Failed to save patient" }
+  }
+}
+
+/**
+ * Check if an ICN is unique
+ */
+export async function checkICNUniqueness(icn: string, currentPatientId?: string) {
+  try {
+    const supabase = createServerSupabaseClient()
+
+    // Validate ICN format first
+    if (!validateICN(icn)) {
+      return { isUnique: false, error: "Invalid ICN format" }
+    }
+
+    // Build query to check if ICN exists
+    let query = supabase.from("patients").select("id").eq("icn", icn)
+
+    // Exclude current patient if updating
+    if (currentPatientId) {
+      query = query.neq("id", currentPatientId)
+    }
+
+    const { data, error } = await query.maybeSingle()
+
+    if (error) throw error
+
+    // If data exists, the ICN is not unique
+    return { isUnique: !data, error: null }
+  } catch (error) {
+    console.error("Error checking ICN uniqueness:", error)
+    return { isUnique: false, error: "Failed to check ICN uniqueness" }
+  }
+}
+
+/**
+ * Get patient by login code and name
+ */
+export async function getPatientByLoginCredentials(loginCode: string, fullName: string) {
+  try {
+    const supabase = createServerSupabaseClient()
+
+    // Get patient by login code
+    const { data: patient, error } = await supabase.from("patients").select("*").eq("login_code", loginCode).single()
+
+    if (error || !patient) {
+      return { patient: null, error: "Invalid login credentials" }
+    }
+
+    // Verify full name (case-insensitive comparison)
+    if (patient.name.toLowerCase() !== fullName.toLowerCase()) {
+      return { patient: null, error: "Invalid login credentials" }
+    }
+
+    return { patient, error: null }
+  } catch (error) {
+    console.error("Error authenticating patient:", error)
+    return { patient: null, error: "Authentication failed" }
   }
 }
 

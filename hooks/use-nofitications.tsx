@@ -105,7 +105,6 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
 
       // Play the sound with proper error handling
       audioRef.current.play().catch((error) => {
-        console.log("Error playing notification sound:", error)
         // This is likely due to browser autoplay restrictions
         // We'll just silently fail as this is not critical functionality
       })

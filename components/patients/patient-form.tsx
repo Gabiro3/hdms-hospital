@@ -7,7 +7,7 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import * as z from "zod"
 import { format } from "date-fns"
-import { CalendarIcon, Loader2, PlusCircle } from "lucide-react"
+import { CalendarIcon, Loader2, PlusCircle, RefreshCw } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -22,6 +22,8 @@ import { cn } from "@/lib/utils"
 import { savePatient } from "@/services/patient-service"
 import { toast } from "@/components/ui/use-toast"
 import { getAllInsurers, createInsurer } from "@/services/insurance-service"
+import { generateUniqueLoginCode } from "@/services/patient-auth-service"
+import { validateICN } from "@/lib/utils/security-utils"
 import {
   Dialog,
   DialogContent,
@@ -32,6 +34,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
+import { createServerSupabaseClient } from "@/lib/supabase/server"
 import { DatePicker } from "../ui/date-picker"
 
 // Define the form schema
@@ -40,6 +43,14 @@ const patientFormSchema = z.object({
   name: z.string().min(2, { message: "Name must be at least 2 characters." }),
   gender: z.enum(["male", "female", "other"], { required_error: "Please select a gender." }),
   dateOfBirth: z.date({ required_error: "Date of birth is required." }),
+
+  // Identification
+  icn: z
+    .string()
+    .min(8, { message: "ICN must be at least 8 characters." })
+    .max(15, { message: "ICN must be at most 15 characters." })
+    .regex(/^[a-zA-Z0-9]+$/, { message: "ICN must contain only letters and numbers." }),
+  loginCode: z.string().length(7, { message: "Login code must be 7 digits." }),
 
   // Contact Information
   email: z.string().email({ message: "Invalid email address." }).optional().or(z.literal("")),
@@ -77,6 +88,7 @@ interface PatientFormProps {
 export default function PatientForm({ hospitalId, userId, doctorName, existingPatient }: PatientFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [activeTab, setActiveTab] = useState("demographics")
+  const [isGeneratingCode, setIsGeneratingCode] = useState(false)
   const router = useRouter()
   const [insurers, setInsurers] = useState<any[]>([])
   const [isLoadingInsurers, setIsLoadingInsurers] = useState(true)
@@ -84,6 +96,8 @@ export default function PatientForm({ hospitalId, userId, doctorName, existingPa
   const [newInsurerName, setNewInsurerName] = useState("")
   const [newInsurerPhone, setNewInsurerPhone] = useState("")
   const [isAddingInsurer, setIsAddingInsurer] = useState(false)
+  const [isCheckingICN, setIsCheckingICN] = useState(false)
+  const [icnError, setIcnError] = useState<string | null>(null)
 
   useEffect(() => {
     async function fetchInsurers() {
@@ -100,6 +114,13 @@ export default function PatientForm({ hospitalId, userId, doctorName, existingPa
 
     fetchInsurers()
   }, [])
+
+  // Generate a login code when the form is first loaded (for new patients)
+  useEffect(() => {
+    if (!existingPatient) {
+      generateLoginCode()
+    }
+  }, [existingPatient])
 
   async function handleAddInsurer() {
     if (!newInsurerName || !newInsurerPhone) {
@@ -144,6 +165,56 @@ export default function PatientForm({ hospitalId, userId, doctorName, existingPa
     }
   }
 
+  async function generateLoginCode() {
+    setIsGeneratingCode(true)
+    try {
+      const loginCode = await generateUniqueLoginCode()
+      form.setValue("loginCode", loginCode)
+    } catch (error) {
+      console.error("Error generating login code:", error)
+      toast({
+        title: "Error",
+        description: "Failed to generate login code. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsGeneratingCode(false)
+    }
+  }
+
+  async function checkICNUniqueness(icn: string) {
+    if (!validateICN(icn)) {
+      setIcnError("ICN must be 8-15 alphanumeric characters")
+      return false
+    }
+
+    setIsCheckingICN(true)
+    setIcnError(null)
+
+    try {
+      const supabase = createServerSupabaseClient()
+
+      // Check if ICN already exists
+      const { data, error } = await supabase.from("patients").select("id").eq("icn", icn).maybeSingle()
+
+      if (error) throw error
+
+      // If data exists and it's not the current patient, the ICN is not unique
+      if (data && (!existingPatient || data.id !== existingPatient.id)) {
+        setIcnError("This ICN is already in use")
+        return false
+      }
+
+      return true
+    } catch (error) {
+      console.error("Error checking ICN uniqueness:", error)
+      setIcnError("Failed to verify ICN uniqueness")
+      return false
+    } finally {
+      setIsCheckingICN(false)
+    }
+  }
+
   // Default values for the form
   const defaultValues: Partial<PatientFormValues> = {
     name: existingPatient?.name || "",
@@ -151,6 +222,8 @@ export default function PatientForm({ hospitalId, userId, doctorName, existingPa
     dateOfBirth: existingPatient?.patient_info?.demographics?.dateOfBirth
       ? new Date(existingPatient.patient_info.demographics.dateOfBirth)
       : undefined,
+    icn: existingPatient?.icn || "",
+    loginCode: existingPatient?.login_code || "",
     email: existingPatient?.patient_info?.contact?.email || "",
     phone: existingPatient?.patient_info?.contact?.phone || "",
     address: existingPatient?.patient_info?.contact?.address || "",
@@ -172,6 +245,10 @@ export default function PatientForm({ hospitalId, userId, doctorName, existingPa
 
   // Handle form submission
   async function onSubmit(data: PatientFormValues) {
+    // Validate ICN uniqueness
+    const isICNValid = await checkICNUniqueness(data.icn)
+    if (!isICNValid) return
+
     setIsSubmitting(true)
 
     try {
@@ -183,6 +260,8 @@ export default function PatientForm({ hospitalId, userId, doctorName, existingPa
         name: data.name,
         hospital_id: hospitalId,
         insurer_id: data.insurerId || null,
+        icn: data.icn,
+        login_code: data.loginCode,
         patient_info: {
           demographics: {
             gender: data.gender,
@@ -257,7 +336,8 @@ export default function PatientForm({ hospitalId, userId, doctorName, existingPa
 
   // Navigate to next tab
   function goToNextTab() {
-    if (activeTab === "demographics") setActiveTab("contact")
+    if (activeTab === "demographics") setActiveTab("identification")
+    else if (activeTab === "identification") setActiveTab("contact")
     else if (activeTab === "contact") setActiveTab("medical")
     else if (activeTab === "medical") setActiveTab("emergency")
     else if (activeTab === "emergency") setActiveTab("insurance")
@@ -270,7 +350,8 @@ export default function PatientForm({ hospitalId, userId, doctorName, existingPa
     else if (activeTab === "insurance") setActiveTab("emergency")
     else if (activeTab === "emergency") setActiveTab("medical")
     else if (activeTab === "medical") setActiveTab("contact")
-    else if (activeTab === "contact") setActiveTab("demographics")
+    else if (activeTab === "contact") setActiveTab("identification")
+    else if (activeTab === "identification") setActiveTab("demographics")
   }
 
   return (
@@ -279,8 +360,9 @@ export default function PatientForm({ hospitalId, userId, doctorName, existingPa
         <Card>
           <CardContent className="pt-6">
             <Tabs value={activeTab} onValueChange={handleTabChange}>
-              <TabsList className="grid w-full grid-cols-6">
+              <TabsList className="grid w-full grid-cols-7">
                 <TabsTrigger value="demographics">Demographics</TabsTrigger>
+                <TabsTrigger value="identification">ID</TabsTrigger>
                 <TabsTrigger value="contact">Contact</TabsTrigger>
                 <TabsTrigger value="medical">Medical</TabsTrigger>
                 <TabsTrigger value="emergency">Emergency</TabsTrigger>
@@ -362,6 +444,74 @@ export default function PatientForm({ hospitalId, userId, doctorName, existingPa
                 />
 
                 <div className="flex justify-end">
+                  <Button type="button" onClick={goToNextTab}>
+                    Next
+                  </Button>
+                </div>
+              </TabsContent>
+
+              <TabsContent value="identification" className="space-y-4 pt-4">
+                <FormField
+                  control={form.control}
+                  name="icn"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Identification Card Number (ICN)</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder="Enter patient's ICN"
+                          {...field}
+                          onChange={(e) => {
+                            field.onChange(e)
+                            setIcnError(null)
+                          }}
+                          onBlur={(e) => {
+                            field.onBlur()
+                            if (e.target.value) {
+                              checkICNUniqueness(e.target.value)
+                            }
+                          }}
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        Unique identifier from patient's ID card (8-15 alphanumeric characters)
+                      </FormDescription>
+                      {icnError && <p className="text-sm font-medium text-destructive mt-1">{icnError}</p>}
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="loginCode"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Patient Login Code</FormLabel>
+                      <div className="flex gap-2">
+                        <FormControl>
+                          <Input placeholder="7-digit code" {...field} readOnly className="font-mono" />
+                        </FormControl>
+                        <Button type="button" variant="outline" onClick={generateLoginCode} disabled={isGeneratingCode}>
+                          {isGeneratingCode ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <RefreshCw className="h-4 w-4" />
+                          )}
+                        </Button>
+                      </div>
+                      <FormDescription>
+                        This 7-digit code will be used by the patient to access their portal
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <div className="flex justify-between">
+                  <Button type="button" variant="outline" onClick={goToPreviousTab}>
+                    Previous
+                  </Button>
                   <Button type="button" onClick={goToNextTab}>
                     Next
                   </Button>

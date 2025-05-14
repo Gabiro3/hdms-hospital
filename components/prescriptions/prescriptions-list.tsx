@@ -29,7 +29,6 @@ export default function PrescriptionsList({ prescriptions, patient }: Prescripti
         prescription.users.full_name.toLowerCase().includes(searchQuery.toLowerCase())) ||
       (prescription.notes && prescription.notes.toLowerCase().includes(searchQuery.toLowerCase())),
   )
-  console.log("Filtered prescriptions:", prescriptions)
 
   // Handle print prescription
   const handlePrintPrescription = async (prescription: any) => {

@@ -145,7 +145,6 @@ export default function ToastNotification() {
 
   // When new notifications arrive, mark them as visible
   useEffect(() => {
-    console.log("Real-time notifications updated:", realtimeNotifications)
     realtimeNotifications.forEach((notification) => {
       if (!visibleNotifications[notification.id]) {
         setVisibleNotifications((prev) => ({

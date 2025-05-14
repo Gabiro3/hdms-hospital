@@ -34,7 +34,6 @@ export function ChatMessage({ role, content, id, sources, code, isLoading = fals
   const handleFeedback = (type: "up" | "down") => {
     setFeedback(type)
     // Here you would typically send the feedback to your backend
-    console.log(`Feedback for message ${id}: ${type}`)
   }
 
   // Check if the message has code

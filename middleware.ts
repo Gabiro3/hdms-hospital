@@ -10,16 +10,28 @@ export async function middleware(req: NextRequest) {
     data: { session },
   } = await supabase.auth.getSession()
 
-  // Check auth condition
+  // Extract query parameters
+  const url = req.nextUrl
+  const searchParams = url.searchParams
+
+  // Check if the 'source' parameter is either 'patient' or 'external'
+  const isSourceAllowed = searchParams.get('source') === 'patient' || searchParams.get('source') === 'external'
+
+  // If source is allowed (patient or external), bypass authentication for /api routes
+  if (url.pathname.startsWith('/api') && isSourceAllowed) {
+    return res
+  }
+
+  // Check auth condition for non-API routes
   const isAuthRoute =
-    req.nextUrl.pathname.startsWith("/login") ||
-    req.nextUrl.pathname.startsWith("/signup") ||
-    req.nextUrl.pathname.startsWith("/reset-password")
+    url.pathname.startsWith("/login") ||
+    url.pathname.startsWith("/signup") ||
+    url.pathname.startsWith("/reset-password")
 
   // If user is not signed in and the route requires authentication, redirect to login
-  if (!session && !isAuthRoute && req.nextUrl.pathname !== "/") {
+  if (!session && !isAuthRoute && url.pathname !== "/" && !url.pathname.startsWith("/patient-portal")) {
     const redirectUrl = new URL("/login", req.url)
-    redirectUrl.searchParams.set("redirectedFrom", req.nextUrl.pathname)
+    redirectUrl.searchParams.set("redirectedFrom", url.pathname)
     return NextResponse.redirect(redirectUrl)
   }
 
