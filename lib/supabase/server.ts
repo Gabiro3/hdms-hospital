@@ -1,6 +1,5 @@
 import { createClient } from "@supabase/supabase-js"
 import type { Database } from "@/types/supabase"
-import { cookies } from "next/headers"
 
 // Create a single supabase client for the server
 export const createServerSupabaseClient = () => {
@@ -16,7 +15,6 @@ export const createServerSupabaseClient = () => {
 
 // Create a client with cookies for authenticated requests
 export async function createServerComponentClient() {
-  const cookieStore = await cookies()
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
