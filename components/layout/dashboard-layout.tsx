@@ -27,7 +27,9 @@ import {
   Settings2Icon,
   SettingsIcon,
   HeartCrackIcon,
-  HeartPulseIcon
+  HeartPulseIcon,
+  BrainIcon,
+  BrainCircuitIcon
 } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import {
@@ -40,6 +42,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { useNotifications } from "@/hooks/use-nofitications"
 import NotificationDialog from "@/components/notifications/notification-dialog"
+import { AskAIButton } from "../ai-assistant/ask-ai-button"
 
 interface DashboardLayoutProps {
   children: React.ReactNode
@@ -119,6 +122,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     { name: "Patients", href: "/patients", icon: Users },
     { name: "Insurance", href: "/insurance", icon: HeartPulseIcon },
     { name: "Radiology & Imaging", href: "/radiology", icon: ComputerIcon },
+    { name: "AI Assistant", href: "/ai-assistant", icon: BrainCircuitIcon },
     { name: "Reports", href: "/reports", icon: FileArchive },
     { name: "Laboratory", href: "/lab", icon: FlaskConical },
     { name: "Support", href: "/support", icon: HelpCircle },
@@ -135,6 +139,9 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
       }
       if (userProfile?.role === "INSURANCE") {
         return ["Dashboard","Insurance", "Support"].includes(item.name)
+      }
+      if (userProfile?.role === "DOCTOR") {
+        return ["Dashboard","Patients", "Reports", "Radiology & Imaging", "Laboratory", "AI Assistant", "Support"].includes(item.name)
       }
 
       return true // all items for other roles
@@ -180,7 +187,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
             </button>
           </div>
           <div className="flex flex-col h-full">
-            <div className="px-3 py-4">
+            <div className="px-3 py-3">
               <div className="space-y-1">
                 {navigation.map((item) => {
                   const isActive = pathname === item.href || pathname?.startsWith(item.href + "/")
@@ -371,6 +378,11 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
             </div>
           </div>
         </div>
+        {/* Floating Chatbot Button */}
+<div className="fixed bottom-6 right-6 z-50">
+  <AskAIButton />
+</div>
+
 
         <main className="flex-1 overflow-y-auto bg-gray-50 p-6">{children}</main>
       </div>

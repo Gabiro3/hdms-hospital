@@ -53,7 +53,6 @@ export function ChatMessage({ role, content, id, sources, code, isLoading = fals
             </Avatar>
           ) : (
             <Avatar>
-              <AvatarImage src="/ai-assistant.png" />
               <AvatarFallback>AI</AvatarFallback>
             </Avatar>
           )}
