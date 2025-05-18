@@ -131,22 +131,22 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const navigation = baseNavigation
     .filter((item) => {
       if (userProfile?.role === "LAB") {
-        return ["Dashboard", "Patients", "Reports", "Laboratory", "Support"].includes(item.name)
+        return ["Dashboard", "Patients", "Reports", "Laboratory", "Support", "AI Assistant"].includes(item.name)
       }
 
       if (userProfile?.role === "IMAGING") {
-        return ["Dashboard", "Patients", "Radiology & Imaging", "Support"].includes(item.name)
+        return ["Dashboard", "Patients", "Radiology & Imaging", "Support", "AI Assistant"].includes(item.name)
       }
       if (userProfile?.role === "INSURANCE") {
-        return ["Dashboard","Insurance", "Support"].includes(item.name)
+        return ["Dashboard", "Insurance", "Support"].includes(item.name)
       }
       if (userProfile?.role === "DOCTOR") {
-        return ["Dashboard","Patients", "Reports", "Radiology & Imaging", "Laboratory", "AI Assistant", "Support"].includes(item.name)
+        return ["Dashboard", "Patients", "Reports", "Radiology & Imaging", "Laboratory", "AI Assistant", "Support"].includes(item.name)
       }
 
       return true // all items for other roles
     })
-    .concat(userProfile?.is_hpadmin ? [{ name: "Billings", href: "/billing", icon: FileBarChartIcon }, {name: "Hospital Admin", href: "/hospital-admin", icon: SettingsIcon}] : [])
+    .concat(userProfile?.is_hpadmin ? [{ name: "Billings", href: "/billing", icon: FileBarChartIcon }, { name: "Hospital Admin", href: "/hospital-admin", icon: SettingsIcon }] : [])
   const getInitials = (name: string) => {
     return name
       .split(" ")
@@ -167,9 +167,8 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
         ) : null}
 
         <div
-          className={`fixed inset-y-0 left-0 z-40 w-64 transform bg-white transition duration-300 ease-in-out ${
-            sidebarOpen ? "translate-x-0" : "-translate-x-full"
-          }`}
+          className={`fixed inset-y-0 left-0 z-40 w-64 transform bg-white transition duration-300 ease-in-out ${sidebarOpen ? "translate-x-0" : "-translate-x-full"
+            }`}
         >
           <div className="flex h-16 items-center justify-between border-b border-gray-200 px-4">
             <div className="flex items-center">
@@ -195,9 +194,8 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                     <Link
                       key={item.name}
                       href={item.href}
-                      className={`flex items-center rounded-md px-3 py-2 text-sm font-medium ${
-                        isActive ? "bg-gray-100 text-primary" : "text-gray-700 hover:bg-gray-50 hover:text-primary"
-                      }`}
+                      className={`flex items-center rounded-md px-3 py-2 text-sm font-medium ${isActive ? "bg-gray-100 text-primary" : "text-gray-700 hover:bg-gray-50 hover:text-primary"
+                        }`}
                       onClick={() => setSidebarOpen(false)}
                     >
                       <item.icon
@@ -254,9 +252,8 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                       <Link
                         key={item.name}
                         href={item.href}
-                        className={`flex items-center rounded-md px-3 py-2 text-sm font-medium ${
-                          isActive ? "bg-gray-100 text-primary" : "text-gray-700 hover:bg-gray-50 hover:text-primary"
-                        }`}
+                        className={`flex items-center rounded-md px-3 py-2 text-sm font-medium ${isActive ? "bg-gray-100 text-primary" : "text-gray-700 hover:bg-gray-50 hover:text-primary"
+                          }`}
                       >
                         <item.icon
                           className={`mr-3 h-5 w-5 flex-shrink-0 ${isActive ? "text-primary" : "text-gray-400"}`}
@@ -379,9 +376,9 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
           </div>
         </div>
         {/* Floating Chatbot Button */}
-<div className="fixed bottom-6 right-6 z-50">
-  <AskAIButton />
-</div>
+        <div className="fixed bottom-6 right-6 z-50">
+          <AskAIButton />
+        </div>
 
 
         <main className="flex-1 overflow-y-auto bg-gray-50 p-6">{children}</main>
