@@ -29,7 +29,8 @@ import {
   HeartCrackIcon,
   HeartPulseIcon,
   BrainIcon,
-  BrainCircuitIcon
+  BrainCircuitIcon,
+  DatabaseBackup
 } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import {
@@ -124,6 +125,11 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     { name: "Radiology & Imaging", href: "/radiology", icon: ComputerIcon },
     { name: "AI Assistant", href: "/ai-assistant", icon: BrainCircuitIcon },
     { name: "Reports", href: "/reports", icon: FileArchive },
+    {
+      name: "Data Migration",
+      href: "/data-migration",
+      icon: DatabaseBackup,
+    },
     { name: "Laboratory", href: "/lab", icon: FlaskConical },
     { name: "Support", href: "/support", icon: HelpCircle },
   ]
@@ -147,6 +153,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
       return true // all items for other roles
     })
     .concat(userProfile?.is_hpadmin ? [{ name: "Billings", href: "/billing", icon: FileBarChartIcon }, { name: "Hospital Admin", href: "/hospital-admin", icon: SettingsIcon }] : [])
+    .concat(userProfile?.is_hpadmin ? [{ name: "Data Migration", href: "/data-migration", icon: DatabaseBackup }] : [])
   const getInitials = (name: string) => {
     return name
       .split(" ")
