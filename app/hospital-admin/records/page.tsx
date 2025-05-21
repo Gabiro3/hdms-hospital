@@ -1,10 +1,10 @@
 import { redirect } from "next/navigation"
-import { cookies } from "next/headers"
 import { createServerComponentClient } from "@supabase/auth-helpers-nextjs"
+import { cookies } from "next/headers"
 import DashboardLayout from "@/components/layout/dashboard-layout"
-import NewPatientContent from "@/components/patients/new-patient-content"
+import RecordSharingDashboard from "@/components/hospital-admin/record-sharing-dashboard"
 
-export default async function NewPatientPage() {
+export default async function HospitalRecordsPage() {
   const supabase = createServerComponentClient({ cookies })
 
   // Check if user is authenticated
@@ -26,25 +26,26 @@ export default async function NewPatientPage() {
   }
 
   // Get user data
-  const { data: userData } = await supabase
-    .from("users")
-    .select("hospital_id, full_name, role")
-    .eq("id", user.id)
-    .single()
+  const { data: userData } = await supabase.from("users").select("hospital_id, role").eq("id", user.id).single()
 
   if (!userData) {
     redirect("/login")
+  }
+
+  // Check if user is admin
+  if (userData.role !== "DOCTOR") {
+    redirect("/dashboard")
   }
 
   return (
     <DashboardLayout>
       <div className="space-y-6">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">New Patient</h1>
-          <p className="text-muted-foreground">Create a new patient record or link an existing patient</p>
+          <h1 className="text-2xl font-semibold tracking-tight">Hospital Records Management</h1>
+          <p className="text-muted-foreground">Manage record requests and sharing between hospitals</p>
         </div>
 
-        <NewPatientContent hospitalId={userData.hospital_id} userId={user.id} doctorName={userData.full_name} />
+        <RecordSharingDashboard hospitalId={userData.hospital_id} />
       </div>
     </DashboardLayout>
   )

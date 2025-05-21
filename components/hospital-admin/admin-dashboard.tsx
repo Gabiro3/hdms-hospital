@@ -5,7 +5,7 @@ import Link from "next/link"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Button } from "@/components/ui/button"
-import { Users, UserPlus, UserX, ShieldAlert, Activity, Bell, BarChart3, ClipboardList, Megaphone } from "lucide-react"
+import { Users, UserPlus, UserX, ShieldAlert, Activity, Bell, BarChart3, ClipboardList, Megaphone, Text } from "lucide-react"
 import { createHospitalAnnouncement } from "@/services/hospital-admin-service"
 import { useToast } from "@/hooks/use-toast"
 import {
@@ -149,8 +149,8 @@ export default function AdminDashboard({ stats, hospitalId, userId }: AdminDashb
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
         <Card className="col-span-4">
           <CardHeader>
-            <CardTitle>User Management</CardTitle>
-            <CardDescription>Manage hospital users, roles, and permissions</CardDescription>
+            <CardTitle>User and Patient Management</CardTitle>
+            <CardDescription>Manage hospital users, roles, patients and permissions</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="grid gap-4 md:grid-cols-2">
@@ -172,10 +172,10 @@ export default function AdminDashboard({ stats, hospitalId, userId }: AdminDashb
                   Disabled Accounts
                 </Button>
               </Link>
-              <Link href="/hospital-admin/users?filter=admin">
+              <Link href="/hospital-admin/records">
                 <Button variant="outline" className="w-full justify-start">
-                  <ShieldAlert className="mr-2 h-4 w-4" />
-                  Admin Users
+                  <Text className="mr-2 h-4 w-4" />
+                  Patient Records
                 </Button>
               </Link>
             </div>

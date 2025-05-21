@@ -46,11 +46,7 @@ export async function getGeneralPatientById(patientId: string, hospitalId: strin
 
     // First try to get from patients table
     const { data: patient, error } = await supabase
-      .from("patients")
-      .select("*")
-      .eq("id", patientId)
-      .eq("hospital_id", hospitalId)
-      .single()
+      .rpc("fetch_patients_with_hospital_access", { input_hospital_id: hospitalId })
 
     // If found in patients table
     if (patient && !error) {
@@ -90,7 +86,7 @@ export async function getGeneralPatientById(patientId: string, hospitalId: strin
 
       return {
         patient: {
-          ...patient,
+          ...patient[0],
           diagnoses: diagnoses || [],
           visits: visits || [],
         },
@@ -295,6 +291,123 @@ export async function searchPatients(hospitalId: string, query: string) {
   }
 }
 /**
+
+/**
+ * Check if an ICN is unique
+ */
+export async function checkICNUniqueness(icn: string, currentPatientId?: string) {
+  try {
+    const supabase = createServerSupabaseClient()
+
+    // Validate ICN format first
+    if (!validateICN(icn)) {
+      return { isUnique: false, error: "Invalid ICN format" }
+    }
+
+    // Build query to check if ICN exists
+    let query = supabase.from("patients").select("id").eq("icn", icn)
+
+    // Exclude current patient if updating
+    if (currentPatientId) {
+      query = query.neq("id", currentPatientId)
+    }
+
+    const { data, error } = await query.maybeSingle()
+
+    if (error) throw error
+
+    // If data exists, the ICN is not unique
+    return { isUnique: !data, error: null }
+  } catch (error) {
+    console.error("Error checking ICN uniqueness:", error)
+    return { isUnique: false, error: "Failed to check ICN uniqueness" }
+  }
+}
+
+/**
+ * Search for a patient by ICN
+ */
+export async function searchPatientByICN(icn: string) {
+  try {
+    const supabase = createServerSupabaseClient()
+
+    // Validate ICN format
+    if (!validateICN(icn)) {
+      return { patient: null, error: "Invalid ICN format" }
+    }
+
+    // Search for patient with matching ICN
+    const { data: patient, error } = await supabase.from("patients").select("*").eq("icn", icn).single()
+
+    if (error && error.code !== "PGSQL_ERROR") {
+      throw error
+    }
+
+    return { patient: patient || null, error: null }
+  } catch (error) {
+    console.error("Error searching for patient by ICN:", error)
+    return { patient: null, error: "Failed to search for patient" }
+  }
+}
+
+/**
+ * Link a patient to a hospital
+ */
+export async function linkPatientToHospital(patientId: string, hospitalId: string) {
+  try {
+    const supabase = createServerSupabaseClient()
+
+    // Get the patient
+    const { data: patient, error: fetchError } = await supabase
+      .from("patients")
+      .select("*")
+      .eq("id", patientId)
+      .single()
+
+    if (fetchError) throw fetchError
+
+    // Check if hospital is already in accessed_hospitals
+    const accessedHospitals = patient.accessed_hospitals || []
+    if (accessedHospitals.includes(hospitalId)) {
+      return { success: true, error: null }
+    }
+
+    // Add hospital to accessed_hospitals
+    const updatedAccessedHospitals = [...accessedHospitals, hospitalId]
+
+    // Update the patient
+    const { error: updateError } = await supabase
+      .from("patients")
+      .update({ accessed_hospitals: updatedAccessedHospitals })
+      .eq("id", patientId)
+
+    if (updateError) throw updateError
+
+    // Log activity
+    try {
+      await supabase.from("user_activities").insert({
+        user_id: "system",
+        action: "link_patient",
+        details: `Linked patient ${patientId} to hospital ${hospitalId}`,
+        resource_type: "patient",
+        resource_id: patientId,
+        metadata: {
+          patient_id: patientId,
+          hospital_id: hospitalId,
+        },
+        created_at: new Date().toISOString(),
+      })
+    } catch (e) {
+      console.error("Error logging patient linking activity:", e)
+    }
+
+    return { success: true, error: null }
+  } catch (error) {
+    console.error("Error linking patient to hospital:", error)
+    return { success: false, error: "Failed to link patient to hospital" }
+  }
+}
+
 /**
  * Create or update a patient
  */
@@ -326,15 +439,24 @@ export async function savePatient(patientData: any) {
     // Check if patient exists
     const { data: existingPatient, error: checkError } = await supabase
       .from("patients")
-      .select("id")
+      .select("id, accessed_hospitals")
       .eq("id", patientData.id)
       .maybeSingle()
 
     if (checkError) throw checkError
 
-    // Add created_at if it's a new patient
+    // Initialize accessed_hospitals if it's a new patient
     if (!existingPatient) {
       patientData.created_at = new Date().toISOString()
+      patientData.accessed_hospitals = [patientData.hospital_id]
+    } else {
+      // Ensure hospital_id is in accessed_hospitals for existing patient
+      const accessedHospitals = existingPatient.accessed_hospitals || []
+      if (!accessedHospitals.includes(patientData.hospital_id)) {
+        patientData.accessed_hospitals = [...accessedHospitals, patientData.hospital_id]
+      } else {
+        patientData.accessed_hospitals = accessedHospitals
+      }
     }
 
     // Update the updated_at timestamp
@@ -373,38 +495,6 @@ export async function savePatient(patientData: any) {
   } catch (error) {
     console.error("Error saving patient:", error)
     return { patient: null, error: "Failed to save patient" }
-  }
-}
-
-/**
- * Check if an ICN is unique
- */
-export async function checkICNUniqueness(icn: string, currentPatientId?: string) {
-  try {
-    const supabase = createServerSupabaseClient()
-
-    // Validate ICN format first
-    if (!validateICN(icn)) {
-      return { isUnique: false, error: "Invalid ICN format" }
-    }
-
-    // Build query to check if ICN exists
-    let query = supabase.from("patients").select("id").eq("icn", icn)
-
-    // Exclude current patient if updating
-    if (currentPatientId) {
-      query = query.neq("id", currentPatientId)
-    }
-
-    const { data, error } = await query.maybeSingle()
-
-    if (error) throw error
-
-    // If data exists, the ICN is not unique
-    return { isUnique: !data, error: null }
-  } catch (error) {
-    console.error("Error checking ICN uniqueness:", error)
-    return { isUnique: false, error: "Failed to check ICN uniqueness" }
   }
 }
 

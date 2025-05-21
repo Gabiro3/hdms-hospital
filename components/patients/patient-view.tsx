@@ -112,6 +112,10 @@ export default function PatientView({ patient, currentUser }: PatientViewProps) 
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
   }
+  const handleViewPatientRecords = () => {
+    // Redirect to the patient's records page
+    router.push(`/patients/${patient?.id}/records`);
+  };
 
   // Handle visit form submission
   const handleVisitSubmitted = () => {
@@ -191,6 +195,10 @@ export default function PatientView({ patient, currentUser }: PatientViewProps) 
           </div>
         </div>
         <div className="flex gap-2">
+          <Button variant="outline" onClick={handleViewPatientRecords}>
+                <FileText className="mr-2 h-4 w-4" />
+                Request Patient Records
+          </Button>
           <Button variant="outline" onClick={handlePrintPatient} disabled={isGeneratingPDF}>
             {isGeneratingPDF ? (
               <>

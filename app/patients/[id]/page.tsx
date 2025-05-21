@@ -45,10 +45,6 @@ export default async function PatientDetailPage({
     notFound()
   }
 
-  // Check if user has access to this patient (same hospital)
-  if (patient.hospital_id !== userData.hospital_id) {
-    redirect("/dashboard")
-  }
 
   return (
     <DashboardLayout>

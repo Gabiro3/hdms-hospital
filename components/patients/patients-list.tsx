@@ -38,10 +38,9 @@ export default function PatientsList({ hospitalId }: PatientsListProps) {
     const fetchPatients = async () => {
       setLoading(true)
       try {
-        const { data: patientsData, error } = await supabase
-          .from("patients")
-          .select("*")
-          .eq("hospital_id", hospitalId)
+        // Use raw SQL via Supabase's .rpc() function to handle array containment
+    const { data: patientsData, error } = await supabase
+      .rpc("fetch_patients_with_hospital_access", { input_hospital_id: hospitalId })
   
         if (error) throw error
   

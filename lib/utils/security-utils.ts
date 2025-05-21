@@ -15,8 +15,8 @@ export function generateSessionToken(): string {
  * - Cannot contain special characters
  */
 export function validateICN(icn: string): boolean {
-  // Check if ICN is alphanumeric and within length limits
-  return /^[a-zA-Z0-9]{8,15}$/.test(icn)
+  // Check if ICN is exactly 16 digits
+  return /^\d{16}$/.test(icn);
 }
 
 /**
