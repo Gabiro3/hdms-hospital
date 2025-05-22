@@ -238,13 +238,14 @@ export async function uploadRadiologyImage(file: File, studyId: string) {
 export async function getDoctorColleagues(userId: string, hospitalId: string) {
   try {
     const supabase = createServerSupabaseClient()
+    console.log(userId, hospitalId)
 
     const { data, error } = await supabase
       .from("users")
       .select("id, full_name, email, expertise, role")
       .eq("hospital_id", hospitalId)
       .neq("id", userId) // Exclude the current user
-      .in("role", ["LAB", "IMAGING"]) // Only include doctors and radiologists
+      .in("role", ["LAB", "IMAGING", "DOCTOR"]) // Only include doctors and radiologists
       .order("full_name")
 
     if (error) throw error
