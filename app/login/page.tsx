@@ -2,7 +2,7 @@ import type { Metadata } from "next"
 import LoginForm from "@/components/auth/login-form"
 
 export const metadata: Metadata = {
-  title: "Login | Hospital Diagnosis Management System",
+  title: "Login | Healthlink HDMS",
   description: "Login to the Hospital Diagnosis Management System",
 }
 
@@ -28,7 +28,7 @@ export default function LoginPage() {
             </svg>
           </div>
           <h1 className="text-center text-2xl font-bold tracking-tight text-gray-900">
-            Hospital Diagnosis Management System
+            Heahtlink HDMS
           </h1>
           <h2 className="mt-2 text-center text-3xl font-extrabold tracking-tight text-gray-900">Welcome back</h2>
           <p className="mt-2 text-center text-sm text-gray-600">Login with your hospital credentials to continue</p>

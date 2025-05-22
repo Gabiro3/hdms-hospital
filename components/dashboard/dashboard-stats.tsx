@@ -121,7 +121,7 @@ export default function DashboardStats({ hospitalId }: DashboardStatsProps) {
       trendUp: null,
     },
     {
-      title: "Average Response Time",
+      title: "Average AI Response Time",
       value: "3 seconds",
       icon: <TrendingUp className="h-5 w-5 text-primary" />,
       trend: "+5% from last month",

@@ -132,22 +132,23 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     },
     { name: "Laboratory", href: "/lab", icon: FlaskConical },
     { name: "Support", href: "/support", icon: HelpCircle },
+    { name: "My Profile", href: "/profile", icon: Settings2Icon },
   ]
 
   const navigation = baseNavigation
     .filter((item) => {
       if (userProfile?.role === "LAB") {
-        return ["Dashboard", "Patients", "Reports", "Laboratory", "Support", "AI Assistant"].includes(item.name)
+        return ["Dashboard", "Patients", "Reports", "Laboratory", "Support", "AI Assistant", "My Profile"].includes(item.name)
       }
 
       if (userProfile?.role === "IMAGING") {
-        return ["Dashboard", "Patients", "Radiology & Imaging", "Support", "AI Assistant"].includes(item.name)
+        return ["Dashboard", "Patients", "Radiology & Imaging", "Support", "AI Assistant", "My Profile"].includes(item.name)
       }
       if (userProfile?.role === "INSURANCE") {
         return ["Dashboard", "Insurance", "Support"].includes(item.name)
       }
       if (userProfile?.role === "DOCTOR") {
-        return ["Dashboard", "Patients", "Reports", "Radiology & Imaging", "Laboratory", "AI Assistant", "Support"].includes(item.name)
+        return ["Dashboard", "Patients", "Reports", "Radiology & Imaging", "Laboratory", "AI Assistant", "Support", "My Profile"].includes(item.name)
       }
 
       return true // all items for other roles

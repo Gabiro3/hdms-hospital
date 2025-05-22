@@ -11,7 +11,7 @@ import ToastNotification from "@/components/notifications/toast-notification"
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata = {
-  title: "Hospital Diagnosis Management System",
+  title: "Hospital and Diagnosis Management System",
   description: "A comprehensive system for managing hospital diagnoses",
 }
 
