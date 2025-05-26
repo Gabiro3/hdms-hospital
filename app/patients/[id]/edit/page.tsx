@@ -2,7 +2,7 @@ import type { Metadata } from "next"
 import { notFound, redirect } from "next/navigation"
 import { cookies } from "next/headers"
 import DashboardLayout from "@/components/layout/dashboard-layout"
-import PatientEditForm from "@/components/patients/patient-edit-form"
+import PatientForm from "@/components/patients/patient-form"
 import { createServerComponentClient } from "@supabase/auth-helpers-nextjs"
 import { getGeneralPatientById } from "@/services/patient-service"
 
@@ -62,7 +62,7 @@ export default async function EditPatientPage({
           <p className="text-muted-foreground">Update patient details, medical information, and emergency contacts.</p>
         </div>
 
-        <PatientEditForm
+        <PatientForm
           hospitalId={userData.hospital_id}
           userId={user.id}
           doctorName={userData.full_name}

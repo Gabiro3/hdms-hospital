@@ -5,18 +5,17 @@ import { notFound, redirect } from "next/navigation"
 import DashboardLayout from "@/components/layout/dashboard-layout"
 import PatientView from "@/components/patients/patient-view"
 import { getGeneralPatientById } from "@/services/patient-service"
-import { getDiagnoses } from "@/services/diagnosis-service"
 
 export const metadata: Metadata = {
   title: "Patient Details | Hospital Diagnosis Management System",
   description: "View patient details and diagnoses",
 }
 
-export default async function PatientDetailPage({
-  params,
-}: {
+export default async function PatientDetailPage(context: {
   params: { id: string }
 }) {
+  // 👇 Access params.id from the context
+  const { id } = context.params
   const supabase = createServerComponentClient({ cookies })
 
   // Check if user is authenticated
@@ -29,14 +28,15 @@ export default async function PatientDetailPage({
   }
 
   // Get user data
-  const { data: userData } = await supabase.from("users").select("hospital_id, full_name, id").eq("id", session.user.id).single()
+  const { data: userData } = await supabase
+    .from("users")
+    .select("hospital_id, full_name, id")
+    .eq("id", session.user.id)
+    .single()
 
   if (!userData) {
     redirect("/login")
   }
-
-  // Ensure params.id is available before continuing
-  const { id } = params;  // Extract id from params here
 
   // Get patient data
   const { patient, error: patientError } = await getGeneralPatientById(id, userData.hospital_id)
@@ -45,10 +45,9 @@ export default async function PatientDetailPage({
     notFound()
   }
 
-
   return (
     <DashboardLayout>
-      <PatientView patient={patient} currentUser={userData}/>
+      <PatientView patient={patient} currentUser={userData} />
     </DashboardLayout>
   )
 }

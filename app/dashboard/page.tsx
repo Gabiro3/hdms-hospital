@@ -21,15 +21,15 @@ export default async function DashboardPage() {
 
   // Check if user is authenticated
   const {
-    data: { session },
-  } = await supabase.auth.getSession()
+    data: { user },
+  } = await supabase.auth.getUser()
 
-  if (!session) {
+  if (!user) {
     redirect("/login")
   }
 
   // Get user data
-  const { data: userData } = await supabase.from("users").select("*, hospitals(*)").eq("id", session.user.id).single()
+  const { data: userData } = await supabase.from("users").select("*, hospitals(*)").eq("id", user.id).single()
 
   if (!userData) {
     redirect("/login")

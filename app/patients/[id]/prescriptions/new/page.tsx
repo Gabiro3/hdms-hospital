@@ -11,13 +11,14 @@ export const metadata: Metadata = {
   description: "Create a new prescription for a patient",
 }
 
-export default async function CreatePrescriptionPage({
-  params,
-  searchParams,
-}: {
+export default async function CreatePrescriptionPage(context: {
   params: { id: string }
   searchParams: { visitId?: string }
 }) {
+  const { params, searchParams } = context
+  const { id } = params
+
+  const cookieStore = await cookies()
   const supabase = createServerComponentClient({ cookies })
 
   // Check if user is authenticated
@@ -28,7 +29,6 @@ export default async function CreatePrescriptionPage({
   if (!session) {
     redirect("/login")
   }
-
 
   // Get user data
   const { data: userData } = await supabase
@@ -41,7 +41,7 @@ export default async function CreatePrescriptionPage({
   }
 
   // Get patient data
-  const { patient, error } = await getGeneralPatientById(params.id, userData[0].hospital_id)
+  const { patient, error } = await getGeneralPatientById(id, userData[0].hospital_id)
 
   if (error || !patient) {
     notFound()
@@ -54,38 +54,31 @@ export default async function CreatePrescriptionPage({
       .from("patient_visits")
       .select("*")
       .eq("id", searchParams.visitId)
-      .eq("patient_id", params.id)
+      .eq("patient_id", id)
       .eq("hospital_id", userData[0].hospital_id)
 
-    if (visitError || !visitData) {
-      // If visit not found, redirect to create prescription without visit
-      alert("You must record a visit before creating a prescription.")
+    if (!visitError && visitData?.length) {
+      visit = visitData[0]
     }
-
-    visit = visitData
   } else {
-    // If no visitId provided, get the most recent visit
     const { data: recentVisit, error: recentVisitError } = await supabase
       .from("patient_visits")
       .select("*")
-      .eq("patient_id", params.id)
+      .eq("patient_id", id)
       .eq("hospital_id", userData[0].hospital_id)
       .order("visit_date", { ascending: false })
       .limit(1)
       .single()
 
-    if (!recentVisitError && recentVisit) {
-      visit = recentVisit
-    } else {
-      // Create a default visit object if no visits found
-      visit = {
-        id: "new",
-        patient_id: params.id,
-        visit_date: new Date().toISOString(),
-        reason: "General consultation",
-        hospital_id: userData[0].hospital_id,
-      }
-    }
+    visit = recentVisitError || !recentVisit
+      ? {
+          id: "new",
+          patient_id: id,
+          visit_date: new Date().toISOString(),
+          reason: "General consultation",
+          hospital_id: userData[0].hospital_id,
+        }
+      : recentVisit
   }
 
   return (
@@ -96,7 +89,12 @@ export default async function CreatePrescriptionPage({
           <p className="text-muted-foreground">Create a new prescription for {patient.name}</p>
         </div>
 
-        <PrescriptionForm patient={patient} visit={visit} doctor={userData} hospitalId={userData[0].hospital_id} />
+        <PrescriptionForm
+          patient={patient}
+          visit={visit}
+          doctor={userData[0]}
+          hospitalId={userData[0].hospital_id}
+        />
       </div>
     </DashboardLayout>
   )
